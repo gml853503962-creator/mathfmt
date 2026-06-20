@@ -1,0 +1,4 @@
+interface:
+  display_name: "MathFmt"
+  short_description: "Typeset DOCX formulas as native Word equations."
+  default_prompt: "Use $mathfmt to convert plain-text formulas in this DOCX into professional paper-style Word equations."
