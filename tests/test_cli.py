@@ -128,3 +128,87 @@ def test_doctor_json_reports_python_backend_without_xsl(
     assert data["ready"] is True
     assert data["backend"] == "python"
     assert data["xsl"] is None
+
+
+def test_update_command_shows_up_to_date(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from mathfmt.update import UpdateInfo
+
+    fake_info = UpdateInfo(
+        current_version="0.2.0",
+        latest_version="0.2.0",
+        is_update_available=False,
+        release_url="",
+        release_notes="",
+        published_at="",
+        install_commands=[],
+    )
+
+    monkeypatch.setattr(cli, "check_for_updates", lambda **kw: fake_info)
+    code = cli.main(["update"])
+    assert code == 0
+    assert "up to date" in capsys.readouterr().out
+
+
+def test_update_command_shows_available_update(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from mathfmt.update import UpdateInfo
+
+    fake_info = UpdateInfo(
+        current_version="0.2.0",
+        latest_version="0.3.0",
+        is_update_available=True,
+        release_url="https://github.com/gml853503962-creator/mathfmt/releases/tag/v0.3.0",
+        release_notes="Bug fixes and new features.",
+        published_at="2026-06-22",
+        install_commands=["pip install --upgrade mathfmt"],
+    )
+
+    monkeypatch.setattr(cli, "check_for_updates", lambda **kw: fake_info)
+    code = cli.main(["update"])
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "0.3.0 is available" in out
+    assert "pip install --upgrade mathfmt" in out
+
+
+def test_update_check_flag_exits_1_when_update_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from mathfmt.update import UpdateInfo
+
+    fake_info = UpdateInfo(
+        current_version="0.2.0",
+        latest_version="0.3.0",
+        is_update_available=True,
+        release_url="",
+        release_notes="",
+        published_at="",
+        install_commands=["pip install --upgrade mathfmt"],
+    )
+
+    monkeypatch.setattr(cli, "check_for_updates", lambda **kw: fake_info)
+    assert cli.main(["update", "--check"]) == 1
+
+
+def test_update_check_flag_exits_0_when_up_to_date(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from mathfmt.update import UpdateInfo
+
+    fake_info = UpdateInfo(
+        current_version="0.2.0",
+        latest_version="0.2.0",
+        is_update_available=False,
+        release_url="",
+        release_notes="",
+        published_at="",
+        install_commands=[],
+    )
+
+    monkeypatch.setattr(cli, "check_for_updates", lambda **kw: fake_info)
+    assert cli.main(["update", "--check"]) == 0

@@ -16,6 +16,7 @@ from lxml import etree
 
 from . import __version__
 from .core import apply_docx, find_xsl, scan_docx
+from .update import check_for_updates
 from .validate import validate_docx
 
 
@@ -82,6 +83,14 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--report", type=Path)
     validate.add_argument("--review", type=Path, help="path to candidates.json for formula coverage check")
     validate.add_argument("--xsl", type=Path, help="path to MML2OMML.XSL for cross-backend comparison")
+
+    update = subparsers.add_parser("update", help="check for newer MathFmt releases on GitHub")
+    update.add_argument("--check", action="store_true",
+                        help="only check; exit 0 if up-to-date, exit 1 if update available")
+    update.add_argument("--pre", action="store_true", dest="include_prerelease",
+                        help="include pre-release versions")
+    update.add_argument("--force", action="store_true",
+                        help="bypass cache and re-check GitHub immediately")
     return parser
 
 
@@ -189,6 +198,25 @@ def main(argv: Sequence[str] | None = None) -> int:
                     if errors:
                         print(f"OMML errors: {len(errors)}")
                 return 1
+        if args.command == "update":
+            info = check_for_updates(
+                include_prerelease=getattr(args, "include_prerelease", False),
+                force=getattr(args, "force", False),
+            )
+            print(info.summary)
+            if info.is_update_available:
+                if info.release_url:
+                    print(f"\nRelease: {info.release_url}")
+                if info.published_at:
+                    print(f"Published: {info.published_at}")
+                if info.release_notes:
+                    print(f"\n── Release notes ──\n{info.release_notes}")
+                print("\nTo update, run one of:")
+                for cmd in info.install_commands:
+                    print(f"  {cmd}")
+            if args.check:
+                return 0 if not info.is_update_available else 1
+            return 0
     except (FileNotFoundError, ValueError, json.JSONDecodeError, etree.XMLSyntaxError) as exc:
         print(f"mathfmt: error: {exc}", file=sys.stderr)
         return 1

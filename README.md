@@ -58,6 +58,22 @@ mathfmt apply   input.docx --review candidates.json --output out.docx --report r
 mathfmt convert input.docx                           # 保守一键转换
 mathfmt validate input.docx                           # 离线结构验证
 mathfmt doctor                                        # 环境诊断
+mathfmt update                                        # 检查 GitHub 更新
+```
+
+### 更新
+
+```powershell
+mathfmt update              # 检查更新并显示安装命令
+mathfmt update --check      # CI 模式：有更新时退出码 1，最新时退出码 0
+mathfmt update --pre        # 包含预发布版本
+mathfmt update --force      # 跳过缓存，立即检查 GitHub
+```
+
+检测结果缓存 1 小时。也可直接运行：
+
+```powershell
+pip install --upgrade mathfmt
 ```
 
 ### 版本路线
@@ -122,6 +138,22 @@ mathfmt apply   input.docx --review candidates.json --output out.docx --report r
 mathfmt convert input.docx                           # Conservative one-step conversion
 mathfmt validate input.docx                           # Offline structure validation
 mathfmt doctor                                        # Environment check
+mathfmt update                                        # Check GitHub for updates
+```
+
+### Updating
+
+```powershell
+mathfmt update              # Check for updates and show install commands
+mathfmt update --check      # CI mode: exit 1 when update available, 0 when current
+mathfmt update --pre        # Include pre-release versions
+mathfmt update --force      # Skip cache, re-check GitHub immediately
+```
+
+Check results are cached for 1 hour. You can also upgrade directly:
+
+```powershell
+pip install --upgrade mathfmt
 ```
 
 ### Version Roadmap

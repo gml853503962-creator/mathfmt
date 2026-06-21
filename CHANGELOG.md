@@ -2,6 +2,14 @@
 
 All notable changes to MathFmt are documented here.
 
+## [0.2.1] - 2026-06-21
+
+### Added
+- `mathfmt update` — checks GitHub Releases for newer versions and shows upgrade
+  instructions. Supports `--check` (CI-friendly exit codes), `--pre` (pre-releases),
+  and `--force` (bypass 1-hour cache).
+- `mathfmt.update` public API: `check_for_updates()`, `UpdateInfo`, `fetch_latest_release()`.
+
 ## [0.2.0] - 2026-06-21
 
 ### Added
