@@ -16,31 +16,58 @@ GITHUB_API = "https://api.github.com/repos/gml853503962-creator/mathfmt/releases
 CACHE_FILE = Path.home() / ".cache" / "mathfmt" / "update-check.json"
 CACHE_TTL = 3600  # 1 hour
 
+# Required keys that every cache entry must contain.
+_REQUIRED_CACHE_KEYS = frozenset(
+    {"checked_at", "latest_version", "is_update_available", "prerelease"}
+)
+
 
 def _parse_semver(version: str) -> tuple[int, ...]:
-    """Parse a semver string like '0.2.0' or 'v0.2.0' into a tuple of ints."""
+    """Parse a semver string like '0.2.0', 'v0.2.1-beta.1' into a tuple of ints.
+
+    Pre-release suffixes (everything after the first ``-``) are stripped
+    before parsing so that ``(0,2,1)`` compares correctly against ``(0,2,0)``.
+    """
     v = version.lstrip("v")
+    # Strip pre-release / build metadata
+    prerelease_sep = v.find("-")
+    if prerelease_sep != -1:
+        v = v[:prerelease_sep]
+    build_sep = v.find("+")
+    if build_sep != -1:
+        v = v[:build_sep]
     parts = v.split(".")
     result: list[int] = []
     for p in parts:
         try:
             result.append(int(p))
         except ValueError:
-            break
+            result.append(0)
     return tuple(result)
 
 
-def _load_cache() -> dict[str, Any] | None:
-    """Load cached check result if still fresh."""
+def _load_cache(prerelease: bool) -> dict[str, Any] | None:
+    """Load cached check result if still fresh and matching the prerelease mode."""
     try:
         if not CACHE_FILE.is_file():
             return None
         data = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
-        if time.time() - data.get("checked_at", 0) < CACHE_TTL:
-            return data
     except (OSError, json.JSONDecodeError, ValueError):
-        pass
-    return None
+        return None
+
+    # Validate required keys exist
+    if _REQUIRED_CACHE_KEYS - data.keys():
+        return None
+
+    # Validate TTL
+    if time.time() - data["checked_at"] >= CACHE_TTL:
+        return None
+
+    # Validate prerelease mode matches
+    if data.get("prerelease") != prerelease:
+        return None
+
+    return data
 
 
 def _save_cache(data: dict[str, Any]) -> None:
@@ -63,9 +90,12 @@ class UpdateInfo:
     release_notes: str
     published_at: str
     install_commands: list[str]
+    error: str = ""
 
     @property
     def summary(self) -> str:
+        if self.error:
+            return f"MathFmt {self.current_version}: {self.error}"
         if not self.is_update_available:
             return f"MathFmt {self.current_version} is up to date."
         return (
@@ -115,13 +145,15 @@ def check_for_updates(
         include_prerelease: Also consider pre-release versions.
         force: Bypass the cache and hit GitHub directly.
 
-    Returns an UpdateInfo with comparison results.
+    Returns an UpdateInfo with comparison results.  When the network is
+    unreachable the returned info will have ``error`` set to a non-empty
+    string and ``is_update_available`` will be ``False``.
     """
     current = __version__
 
     # Check cache first (unless forced)
     if not force:
-        cached = _load_cache()
+        cached = _load_cache(prerelease=include_prerelease)
         if cached is not None:
             return UpdateInfo(
                 current_version=current,
@@ -136,7 +168,6 @@ def check_for_updates(
     release = fetch_latest_release(include_prerelease)
 
     if release is None:
-        # Could not reach GitHub — assume up-to-date
         return UpdateInfo(
             current_version=current,
             latest_version=current,
@@ -145,6 +176,7 @@ def check_for_updates(
             release_notes="",
             published_at="",
             install_commands=[],
+            error="Could not reach GitHub to check for updates.",
         )
 
     latest_tag = release.get("tag_name", current)
@@ -166,6 +198,7 @@ def check_for_updates(
         "checked_at": time.time(),
         "latest_version": latest_version,
         "is_update_available": is_update,
+        "prerelease": include_prerelease,
         "release_url": info.release_url,
         "release_notes": info.release_notes,
         "published_at": info.published_at,
@@ -177,7 +210,7 @@ def check_for_updates(
 def _build_install_commands(latest_version: str) -> list[str]:
     """Build platform-appropriate upgrade commands."""
     return [
-        f"pip install --upgrade mathfmt",
+        "pip install --upgrade mathfmt",
         f"pip install --upgrade mathfmt=={latest_version}",
-        f"pip install --upgrade git+https://github.com/gml853503962-creator/mathfmt.git",
+        "pip install --upgrade git+https://github.com/gml853503962-creator/mathfmt.git",
     ]

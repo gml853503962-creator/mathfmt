@@ -10,6 +10,20 @@ All notable changes to MathFmt are documented here.
   and `--force` (bypass 1-hour cache).
 - `mathfmt.update` public API: `check_for_updates()`, `UpdateInfo`, `fetch_latest_release()`.
 
+### Fixed
+- `--pre` cache isolated from stable checks — stale prerelease data won't leak
+  into normal update queries, and vice versa.
+- Network errors now set `error` field instead of silently reporting "up to date",
+  so CI scripts using `--check` get an actionable message.
+- Semver parser now strips pre-release suffixes (`-beta.1`, `-rc.2`) so version
+  comparison yields correct results.
+- Malformed cache files (missing keys) are treated as absent instead of raising
+  `KeyError`.
+- Validate report now emits the actual package version instead of a hardcoded
+  `0.1.0` string.
+- README version and build status badge updated to reflect v0.2.1.
+- Five ruff lint errors resolved (unused imports, f-string without placeholders).
+
 ## [0.2.0] - 2026-06-21
 
 ### Added

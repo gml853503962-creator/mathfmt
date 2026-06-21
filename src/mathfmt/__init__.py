@@ -7,6 +7,7 @@ from .update import UpdateInfo, check_for_updates
 
 __all__ = [
     "UpdateInfo",
+    "__version__",
     "apply_docx",
     "check_for_updates",
     "find_xsl",

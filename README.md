@@ -12,7 +12,7 @@ mathematical operators — suitable for textbooks, exams, and technical reports.
 
 ## Status
 
-**Beta (v0.2.0).** Cross-platform OMML, confidence scoring, and expanded formula support.
+**Beta (v0.2.1).** Cross-platform OMML, confidence scoring, expanded formula support, and self-update.
 
 ---
 

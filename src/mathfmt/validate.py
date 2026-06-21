@@ -253,8 +253,10 @@ def validate_docx(
     if not input_path.is_file():
         raise FileNotFoundError(f"Input DOCX was not found: {input_path}")
 
+    from ._version import __version__
+
     report: dict[str, object] = {
-        "mathfmt": "0.1.0",
+        "mathfmt": __version__,
         "input": str(input_path.resolve()),
         "backend": "python" if xsl_path is None else "office-xsl",
         "valid": True,
