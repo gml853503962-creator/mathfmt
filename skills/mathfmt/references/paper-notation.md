@@ -9,3 +9,6 @@
 - Use standard symbols such as `±`, `≠`, `≤`, `≥`, `→`, `∞`, `Δ`, and `π`.
 - Prefer invisible multiplication for coefficient-variable products.
 - Split long table formulas at top-level addition or subtraction operators when necessary.
+
+For the complete input syntax, preprocessing rules, grammar, and limitations, see
+`docs/formula-syntax.md` in the MathFmt repository.

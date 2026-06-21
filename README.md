@@ -4,115 +4,150 @@
 
 [中文](#中文) | [English](#english)
 
-MathFmt turns awkward plain-text formulas in Word documents into native Word equations suitable for
-textbooks, exams, and technical reports. Processing stays on your computer.
+MathFmt turns plain-text formulas in Word documents into native Word OMML equations —
+stacked fractions, radicals, superscripts, subscripts, derivatives, and standard
+mathematical operators — suitable for textbooks, exams, and technical reports.
+
+---
+
+## Status
+
+**Alpha (v0.1.0).** Formula detection uses heuristic character-class scanning, not
+semantic understanding. False positives and false negatives are expected. Always
+review `candidates.json` before applying, or use `convert` only on formula-dense
+documents. See [Limitations](docs/formula-syntax.md#6-limitations).
+
+---
 
 ## 中文
 
-MathFmt 将 DOCX 文档中的普通文本公式转换为 Word 原生 OMML 公式，例如把 `ds(t)/dt`、
-`sqrt(x^2+1)` 和 `p1` 排版为纸质教材中常见的分式、根号与上下标。
+MathFmt 将 DOCX 中的普通文本公式排版为 Word 原生 OMML 公式。
 
-### 特点
+### 快速示例
 
-- 保留原始 DOCX，始终写入新文件。
-- 支持正文、表格、页眉、页脚和混合文本公式。
-- 自动跳过代码、图片公式和已有 Word 原生公式。
-- 提供可审核流程和保守的一键转换。
-- 完全本地运行，不上传文档。
+| 输入（纯文本） | 输出（Word 原生公式） |
+|---|---|
+| `ds(t)/dt` | 堆叠分式 d s(t) / d t |
+| `s'(t) = -s''(t)` | 导数分数形式 |
+| `sqrt(x^2 + 1)` | 根号 √(x²+1) |
+| `x^3 + p1` | 上标 x³ + 下标 p₁ |
+| `x != 0` | x ≠ 0 |
+| `sin(x) + cos(x)` | sin(x) + cos(x) |
+| `lim(p->0)` | lim 带下置 p→0 |
+| `a/(b+c)` | 堆叠分式 |
+| `e^(p1*t)` | e 的 p₁t 次幂 |
+| `1(t)` | u(t)（单位阶跃） |
+| `Delta + pi` | Δ + π |
+| `x, y, z` | 逗号分隔序列 |
 
-### 环境要求
+### 兼容性
 
-- Windows 10/11
-- Python 3.10 或更高版本
-- Microsoft Word/Office，并包含 `MML2OMML.XSL`
+| | Windows 10/11 | macOS | Linux |
+|---|---|---|---|
+| Python 3.10–3.13 | ✔ | ⚠¹ | ⚠¹ |
+| 公式扫描 | ✔ | ✔ | ✔ |
+| OMML 公式输出 | ✔ | ⚠¹ | ⚠¹ |
+| Word 渲染 | ✔ | ✔² | — |
 
-MathFmt 不分发微软的 XSL 文件。它会自动检查常见 Office 安装目录，也可使用 `--xsl` 指定路径。
+¹ 需手动指定 `MML2OMML.XSL` 路径（`--xsl`）。  
+² macOS 版 Microsoft Word。
 
-### 安装
-
-```powershell
-pip install mathfmt
-mathfmt doctor
-```
-
-从源码开发安装：
-
-```powershell
-git clone https://github.com/gml853503962-creator/mathfmt.git
-cd mathfmt
-python -m pip install -e ".[dev]"
-```
-
-### 使用
+### 命令
 
 ```powershell
-# 保守的一键转换
-mathfmt convert input.docx
-
-# 审核后转换
-mathfmt scan input.docx --report candidates.json
-mathfmt apply input.docx --review candidates.json --output output.docx --report result.json
+mathfmt scan    input.docx --report candidates.json   # 扫描公式候选
+mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json  # 审核后转换
+mathfmt convert input.docx                           # 保守一键转换
+mathfmt doctor                                        # 环境诊断
 ```
 
-一键转换默认生成 `input.mathfmt.docx` 和 `input.mathfmt.report.json`，不会覆盖原文件。编辑
-`candidates.json` 中的 `selected`、`source` 或 `linear` 后再执行 `apply`。如果 Office 安装在
-非标准目录，为 `apply`、`convert` 或 `doctor` 添加 `--xsl C:\path\to\MML2OMML.XSL`。
+### 版本路线
 
-### Codex Skill
+| 版本 | 内容 |
+|---|---|
+| **0.1.0** (已发布) | 基础扫描、审核、转换；原生 Word 公式输出；Windows + Office |
+| **0.2.0** | 跨平台 OMML 生成（不依赖 Office XSL）；置信度评分；独立验证命令 |
+| **0.3.0** | 正式语法引擎；LaTeX 输入；矩阵、积分、求和、向量、分段函数 |
+| **1.0.0** | 稳定 API；长期支持 |
 
-仓库中的 `skills/mathfmt` 可复制到 Codex 技能目录。技能依赖已安装的 `mathfmt` 命令。
+### 更多文档
 
-### 开发与测试
+- [公式语法参考](docs/formula-syntax.md) — 完整预处理规则、语法、MathML 映射和限制
+- [工作流指南](docs/workflow.md) — 安装、审核流程、错误处理、CI 使用
 
-```powershell
-python -m pip install -e ".[dev]"
-pytest
-ruff check .
-```
+### 维护
 
-测试要求总覆盖率不低于 85%。运行后可在 `htmlcov/index.html` 查看详细覆盖率；CI 会在任务摘要中显示覆盖率，并上传 HTML 与 XML 报告。
+单人维护（Leo），尽力响应。欢迎提交 Issue 和 PR。安全漏洞请参阅 [SECURITY.md](SECURITY.md)。
+
+---
 
 ## English
 
-MathFmt converts plain-text formulas in DOCX files into native Word OMML equations with stacked
-fractions, radicals, superscripts, subscripts, derivatives, and standard mathematical operators.
+MathFmt converts plain-text formulas in DOCX files into native Word OMML equations.
 
-### Highlights
+### Quick Examples
 
-- Never overwrites the source DOCX.
-- Handles body text, tables, headers, footers, and formulas mixed with prose.
-- Skips likely code, image formulas, and existing Word equations.
-- Offers both a review-first workflow and conservative one-step conversion.
-- Processes documents locally without uploading them.
+| Input (plain text in DOCX) | Output (native Word equation) |
+|---|---|
+| `ds(t)/dt` | Stacked fraction d s(t) / d t |
+| `s'(t) = -s''(t)` | Leibniz fraction derivatives |
+| `sqrt(x^2 + 1)` | Radical √(x²+1) |
+| `x^3 + p1` | Superscript x³ + subscript p₁ |
+| `x != 0` | x ≠ 0 |
+| `sin(x) + cos(x)` | sin(x) + cos(x) |
+| `lim(p->0)` | lim with under-script p→0 |
+| `a/(b+c)` | Stacked fraction |
+| `e^(p1*t)` | e raised to p₁t |
+| `1(t)` | u(t) (unit step) |
+| `Delta + pi` | Δ + π |
+| `x, y, z` | Comma-separated sequence |
 
-### Requirements and installation
+### Compatibility
 
-MathFmt 0.1 supports Windows, Python 3.10+, and a Microsoft Office installation containing
-`MML2OMML.XSL`. The Microsoft stylesheet is detected locally and is not distributed with MathFmt.
+| | Windows 10/11 | macOS | Linux |
+|---|---|---|---|
+| Python 3.10–3.13 | ✔ | ⚠¹ | ⚠¹ |
+| Formula scanning | ✔ | ✔ | ✔ |
+| OMML equation output | ✔ | ⚠¹ | ⚠¹ |
+| Word rendering | ✔ | ✔² | — |
+
+¹ Manual `--xsl` path required.  
+² Microsoft Word for Mac.
+
+### Commands
 
 ```powershell
-pip install mathfmt
-mathfmt doctor
-mathfmt convert input.docx
+mathfmt scan    input.docx --report candidates.json   # Scan formula candidates
+mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json  # Apply reviewed candidates
+mathfmt convert input.docx                           # Conservative one-step conversion
+mathfmt doctor                                        # Environment check
 ```
 
-For review-first conversion, run `scan`, edit the generated JSON, then run `apply` as shown above.
+### Version Roadmap
 
-### Development and testing
+| Version | Scope |
+|---|---|
+| **0.1.0** (released) | Scan, review, convert; native Word OMML; Windows + Office |
+| **0.2.0** | Cross-platform OMML generator (no Office XSL required); confidence scoring; validate command |
+| **0.3.0** | Formal grammar engine; LaTeX input; matrices, integrals, sums, vectors, piecewise |
+| **1.0.0** | Stable API; long-term support |
 
-```powershell
-python -m pip install -e ".[dev]"
-pytest
-ruff check .
-```
+### Further Reading
 
-The test suite enforces at least 85% total coverage. Open `htmlcov/index.html` after a run for the
-detailed report. CI also publishes a coverage summary and uploads the HTML and XML reports.
+- [Formula Syntax Reference](docs/formula-syntax.md) — every preprocessing rule, the full grammar, MathML output mapping, and known limitations
+- [Workflow Guide](docs/workflow.md) — step-by-step install, review flow, troubleshooting, CI usage
+
+### Maintenance
+
+Single-maintainer project (Leo), best-effort response. Issues and pull requests are
+welcome. See [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md),
+and [SECURITY.md](SECURITY.md).
+
+---
 
 ## Contributing
 
-Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md),
-[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), and [SECURITY.md](SECURITY.md).
+Issues and pull requests are welcome.
 
 ## License
 
