@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
-authors = [{ name = "Leo" }]
+authors = [{ name = "Leo", email = "gml853503962@gmail.com" }]
 keywords = ["docx", "word", "math", "omml", "equation", "typesetting", "cross-platform"]
 classifiers = [
   "Development Status :: 4 - Beta",

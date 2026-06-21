@@ -9,6 +9,7 @@ Security fixes are provided for the latest released version.
 Use GitHub private vulnerability reporting for the MathFmt repository. Do not include confidential
 DOCX files; provide a synthetic reproducer instead. The maintainer will respond **within 7 days**
 and aim to resolve within 30 days. Please allow time for investigation before public disclosure.
+Alternatively, contact the maintainer at <gml853503962@gmail.com>.
 
 MathFmt processes files locally. Treat untrusted DOCX files as untrusted ZIP/XML input and run the
 tool with ordinary user privileges.

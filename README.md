@@ -93,7 +93,9 @@ pip install --upgrade mathfmt
 
 ### 维护
 
-单人维护（Leo），尽力响应。欢迎提交 Issue 和 PR。安全漏洞请参阅 [SECURITY.md](SECURITY.md)。
+单人维护（Leo），尽力响应。欢迎提交 Issue 和 PR，也可通过
+[gml853503962@gmail.com](mailto:gml853503962@gmail.com) 联系。安全漏洞请参阅
+[SECURITY.md](SECURITY.md)。
 
 ---
 
@@ -175,8 +177,10 @@ pip install --upgrade mathfmt
 ### Maintenance
 
 Single-maintainer project (Leo), best-effort response. Issues and pull requests are
-welcome. See [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md),
-and [SECURITY.md](SECURITY.md).
+welcome. You can also contact the maintainer at
+[gml853503962@gmail.com](mailto:gml853503962@gmail.com). See
+[CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), and
+[SECURITY.md](SECURITY.md).
 
 ---
 
