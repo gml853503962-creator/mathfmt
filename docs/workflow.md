@@ -16,15 +16,18 @@ mathfmt doctor
 - Python version
 - Platform
 - `lxml` availability
-- Whether `MML2OMML.XSL` is found in the standard Office paths
+- OMML backend: built-in Python (always available) or Office XSL (auto-detected)
 
-If `MML2OMML.XSL` is not found, point to it explicitly:
+All platforms are ready out of the box. On Windows, `doctor` will indicate when it
+finds Microsoft Office and prefers its XSL backend.
+
+If you need to point to a specific XSL file:
 
 ```powershell
-mathfmt doctor --xsl "C:\Program Files\Microsoft Office\root\Office16\MML2OMML.XSL"
+mathfmt doctor --xsl "C:\path\to\MML2OMML.XSL"
 ```
 
-All commands that need the stylesheet (`apply`, `convert`) accept `--xsl`.
+All commands that produce OMML (`apply`, `convert`) accept `--xsl` to override backend selection.
 
 ---
 
@@ -199,17 +202,20 @@ MathFmt scans `word/header*.xml` and `word/footer*.xml` in addition to the docum
 MathFmt can run without a display:
 
 ```powershell
-# In CI, point to the XSL file explicitly
+# Uses built-in Python OMML backend on any platform
+mathfmt convert input.docx
+
+# Or with explicit XSL backend
 mathfmt convert input.docx --xsl "C:\path\to\MML2OMML.XSL"
 
-# Or run scan-only (no XSL needed)
+# Scan-only (no conversion backend needed)
 mathfmt scan input.docx --report candidates.json
 ```
 
 The `doctor --json` output is machine-readable:
 
 ```json
-{"mathfmt": "0.1.0", "python": "3.12.0", "platform": "Windows-10-...", "windows": true, "lxml": [5, 3, 0], "xsl": "C:\\...\\MML2OMML.XSL", "ready": true}
+{"mathfmt": "0.1.0", "python": "3.12.0", "platform": "Linux-...", "windows": false, "lxml": [5, 3, 0], "xsl": null, "backend": "python", "ready": true}
 ```
 
 ---
@@ -218,7 +224,7 @@ The `doctor --json` output is machine-readable:
 
 | Problem | Solution |
 |---|---|
-| `MML2OMML.XSL was not found` | Install Microsoft Office, or use `--xsl` to point to the file directly |
+| `MML2OMML.XSL was not found` | Normal — the built-in Python backend is used automatically. To use Office XSL, pass `--xsl` |
 | `Refusing to overwrite the input DOCX` | MathFmt never overwrites the source; choose a different `--output` path |
 | `Input must be a .docx file` | MathFmt only handles `.docx` (Office Open XML); convert older `.doc` files first |
 | Formula not detected | Check whether it contains an anchor operator (`=`, `≠`, `<=`, `>=`, `!=`, `→`, `->`, `±`, `+/-`, `√`, `sqrt`, `lim`). If not, the scanner will miss it |

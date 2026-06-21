@@ -33,13 +33,14 @@ def doctor_data(explicit_xsl: Path | None = None) -> dict[str, object]:
         "windows": os.name == "nt",
         "lxml": etree.LXML_VERSION,
         "xsl": None,
-        "ready": False,
+        "backend": "python",
+        "ready": True,
     }
     try:
         data["xsl"] = str(find_xsl(explicit_xsl).resolve())
-        data["ready"] = True
-    except FileNotFoundError as exc:
-        data["error"] = str(exc)
+        data["backend"] = "office-xsl"
+    except FileNotFoundError:
+        pass
     return data
 
 
@@ -60,7 +61,7 @@ def build_parser() -> argparse.ArgumentParser:
     apply.add_argument("--review", type=Path, required=True)
     apply.add_argument("--output", "--out", dest="output", type=Path, required=True)
     apply.add_argument("--report", type=Path, required=True)
-    apply.add_argument("--xsl", type=Path)
+    apply.add_argument("--xsl", type=Path, help="path to MML2OMML.XSL (optional; built-in Python backend used otherwise)")
 
     convert = subparsers.add_parser("convert", help="conservatively convert detected formulas in one step")
     convert.add_argument("input", type=Path)
@@ -77,7 +78,13 @@ def build_parser() -> argparse.ArgumentParser:
 def run_convert(args: argparse.Namespace) -> int:
     output = args.output or default_output(args.input)
     report_path = args.report or default_result_report(output)
-    xsl = find_xsl(args.xsl)
+    if args.xsl is not None:
+        xsl = find_xsl(args.xsl)
+    else:
+        try:
+            xsl = find_xsl()
+        except FileNotFoundError:
+            xsl = None
     with tempfile.TemporaryDirectory(prefix="mathfmt-") as temp_dir:
         review_path = Path(temp_dir) / "candidates.json"
         scan = scan_docx(args.input, review_path)
@@ -99,12 +106,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Report: {args.report}")
             return 0
         if args.command == "apply":
+            if args.xsl is not None:
+                xsl_path = find_xsl(args.xsl)
+            else:
+                try:
+                    xsl_path = find_xsl()
+                except FileNotFoundError:
+                    xsl_path = None
             result = apply_docx(
                 args.input,
                 args.review,
                 args.output,
                 args.report,
-                find_xsl(args.xsl),
+                xsl_path,
             )
             print(f"Converted: {result['converted_count']}")
             print(f"Skipped: {result['skipped_count']}")
@@ -121,10 +135,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"MathFmt: {data['mathfmt']}")
                 print(f"Python: {data['python']}")
                 print(f"Platform: {data['platform']}")
-                print(f"MML2OMML.XSL: {data['xsl'] or 'not found'}")
+                print(f"OMML backend: {data['backend']}")
+                if data["xsl"]:
+                    print(f"MML2OMML.XSL: {data['xsl']}")
                 print(f"Ready: {'yes' if data['ready'] else 'no'}")
-                if data.get("error"):
-                    print(f"Hint: {data['error']}")
             return 0 if data["ready"] else 1
     except (FileNotFoundError, ValueError, json.JSONDecodeError, etree.XMLSyntaxError) as exc:
         print(f"mathfmt: error: {exc}", file=sys.stderr)

@@ -4,6 +4,18 @@ All notable changes to MathFmt are documented here.
 
 ## [Unreleased]
 
+### Added
+- Built-in pure-Python OMML generator (`src/mathfmt/omml.py`) — no Microsoft Office or
+  `MML2OMML.XSL` required. Works on Windows, macOS, and Linux.
+- `mathfmt doctor` now reports `backend: python` (default) or `backend: office-xsl`.
+- `apply` and `convert` commands no longer require `--xsl`; the Python backend is used
+  automatically when Office is not detected.
+
+### Changed
+- `mathfmt_to_omml` now dispatches to XSL or Python backend based on availability.
+- `apply_docx(xsl_path)` parameter is now optional (`None` = Python backend).
+- Compatibility matrix updated: all platforms supported for OMML output.
+
 ### Documentation
 - Added `docs/formula-syntax.md` — complete reference covering all preprocessing rules,
   token types, BNF grammar, MathML output mapping, scanning heuristics, known limitations,

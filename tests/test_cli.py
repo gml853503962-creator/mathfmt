@@ -23,14 +23,17 @@ def test_doctor_data_reports_ready_with_explicit_xsl(tmp_path: Path) -> None:
     assert data["xsl"] == str(xsl.resolve())
 
 
-def test_doctor_data_reports_missing_xsl(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_doctor_data_reports_builtin_backend_when_xsl_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def missing(_: Path | None = None) -> Path:
         raise FileNotFoundError("missing test stylesheet")
 
     monkeypatch.setattr(cli, "find_xsl", missing)
     data = cli.doctor_data()
-    assert data["ready"] is False
-    assert data["error"] == "missing test stylesheet"
+    assert data["ready"] is True
+    assert data["backend"] == "python"
+    assert data["xsl"] is None
 
 
 def test_scan_and_apply_commands(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -73,11 +76,13 @@ def test_cli_reports_missing_input(capsys: pytest.CaptureFixture[str]) -> None:
     assert "mathfmt: error:" in capsys.readouterr().err
 
 
-def test_doctor_command_explains_missing_xsl(capsys: pytest.CaptureFixture[str]) -> None:
-    assert cli.main(["doctor", "--xsl", "missing.xsl"]) == 1
+def test_doctor_command_falls_back_to_builtin_backend(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["doctor", "--xsl", "missing.xsl"]) == 0
     output = capsys.readouterr().out
-    assert "Ready: no" in output
-    assert "not found" in output
+    assert "Ready: yes" in output
+    assert "python" in output
 
 
 def test_cli_reports_invalid_review_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -107,3 +112,19 @@ def test_version_argument_exits_cleanly(capsys: pytest.CaptureFixture[str]) -> N
     with pytest.raises(SystemExit, match="0"):
         cli.main(["--version"])
     assert "MathFmt" in capsys.readouterr().out
+
+
+def test_doctor_json_reports_python_backend_without_xsl(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def missing(_: Path | None = None) -> Path:
+        raise FileNotFoundError("missing")
+
+    monkeypatch.setattr(cli, "find_xsl", missing)
+    code = cli.main(["doctor", "--json"])
+    data = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert data["ready"] is True
+    assert data["backend"] == "python"
+    assert data["xsl"] is None

@@ -44,9 +44,10 @@ MathFmt 将 DOCX 中的普通文本公式排版为 Word 原生 OMML 公式。
 
 | | Windows 10/11 | macOS | Linux |
 |---|---|---|---|
-| Python 3.10–3.13 | ✔ | ⚠¹ | ⚠¹ |
+| Python 3.10–3.13 | ✔ | ✔ | ✔ |
 | 公式扫描 | ✔ | ✔ | ✔ |
-| OMML 公式输出 | ✔ | ⚠¹ | ⚠¹ |
+| OMML 公式输出（内置 Python 后端） | ✔ | ✔ | ✔ |
+| OMML 公式输出（Office XSL 后端） | ✔ | ✔¹ | ✔¹ |
 | Word 渲染 | ✔ | ✔² | — |
 
 ¹ 需手动指定 `MML2OMML.XSL` 路径（`--xsl`）。  
@@ -106,12 +107,13 @@ MathFmt converts plain-text formulas in DOCX files into native Word OMML equatio
 
 | | Windows 10/11 | macOS | Linux |
 |---|---|---|---|
-| Python 3.10–3.13 | ✔ | ⚠¹ | ⚠¹ |
+| Python 3.10–3.13 | ✔ | ✔ | ✔ |
 | Formula scanning | ✔ | ✔ | ✔ |
-| OMML equation output | ✔ | ⚠¹ | ⚠¹ |
+| OMML output (built-in Python backend) | ✔ | ✔ | ✔ |
+| OMML output (Office XSL backend) | ✔ | ✔¹ | ✔¹ |
 | Word rendering | ✔ | ✔² | — |
 
-¹ Manual `--xsl` path required.  
+¹ Manual `--xsl` path required for Office XSL backend.  
 ² Microsoft Word for Mac.
 
 ### Commands

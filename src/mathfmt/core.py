@@ -14,6 +14,8 @@ from pathlib import Path
 
 from lxml import etree
 
+from .omml import mathml_to_omml_py
+
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 MML_NS = "http://www.w3.org/1998/Math/MathML"
@@ -397,7 +399,8 @@ def find_xsl(explicit: Path | None = None) -> Path:
     raise FileNotFoundError("MML2OMML.XSL was not found; pass --xsl with its path")
 
 
-def mathml_to_omml(math: etree._Element, transform: etree.XSLT) -> etree._Element:
+def _mathml_to_omml_xsl(math: etree._Element, transform: etree.XSLT) -> etree._Element:
+    """Convert MathML to OMML via Microsoft's MML2OMML.XSL stylesheet."""
     result = transform(etree.ElementTree(math))
     root = result.getroot()
     if root is None:
@@ -413,6 +416,16 @@ def mathml_to_omml(math: etree._Element, transform: etree.XSLT) -> etree._Elemen
     if not equations:
         raise FormulaError(f"Unexpected MML2OMML root: {root.tag}")
     return copy.deepcopy(equations[0])
+
+
+def mathml_to_omml(
+    math: etree._Element,
+    transform: etree.XSLT | None = None,
+) -> etree._Element:
+    """Convert MathML to OMML, using XSL when available or the built-in Python backend."""
+    if transform is not None:
+        return _mathml_to_omml_xsl(math, transform)
+    return mathml_to_omml_py(math)
 
 
 def paragraph_text(paragraph: etree._Element) -> str:
@@ -693,7 +706,7 @@ def apply_docx(
     review_path: Path,
     output_path: Path,
     result_path: Path,
-    xsl_path: Path,
+    xsl_path: Path | None = None,
 ) -> dict[str, object]:
     if input_path.suffix.lower() != ".docx" or output_path.suffix.lower() != ".docx":
         raise ValueError("Input and output must be .docx files")
@@ -702,12 +715,12 @@ def apply_docx(
     review = json.loads(review_path.read_text(encoding="utf-8"))
     candidates = [c for c in review.get("candidates", []) if c.get("selected")]
     infos, parts = inspect_docx(input_path)
-    transform = etree.XSLT(etree.parse(str(xsl_path)))
+    transform = etree.XSLT(etree.parse(str(xsl_path))) if xsl_path is not None else None
     result: dict[str, object] = {
         "input": str(input_path.resolve()),
         "output": str(output_path.resolve()),
         "review": str(review_path.resolve()),
-        "xsl": str(xsl_path.resolve()),
+        "xsl": str(xsl_path.resolve()) if xsl_path else None,
         "converted": [],
         "skipped": [],
     }

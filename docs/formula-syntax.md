@@ -221,7 +221,11 @@ Candidates are cleaned by removing:
 
 ### Platform
 
-- **OMML conversion** requires Microsoft Office's `MML2OMML.XSL`. Without it, MathFmt can scan and parse but cannot produce native Word equations. macOS and Linux users must provide the stylesheet manually via `--xsl`.
+- **Built-in Python backend**: MathFmt includes a pure-Python OMML generator that works on
+  Windows, macOS, and Linux without Microsoft Office. This is the default when `MML2OMML.XSL`
+  is not detected.
+- **Office XSL backend** (optional): when Microsoft Office is installed, MathFmt automatically
+  detects and uses `MML2OMML.XSL`. The `--xsl` flag overrides automatic detection.
 
 ---
 

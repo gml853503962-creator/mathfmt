@@ -312,3 +312,30 @@ def test_unselected_candidates_leave_document_unchanged(tmp_path: Path) -> None:
         make_fake_xsl(tmp_path / "fake.xsl"),
     )
     assert result["converted_count"] == result["skipped_count"] == 0
+
+
+def test_apply_with_python_backend_produces_omml(tmp_path: Path) -> None:
+    source = make_docx(tmp_path / "source.docx")
+    review = tmp_path / "review.json"
+    scan_docx(source, review)
+    output = tmp_path / "output.docx"
+    result = apply_docx(
+        source,
+        review,
+        output,
+        tmp_path / "result.json",
+        xsl_path=None,
+    )
+    assert result["converted_count"] > 0
+    assert result["skipped_count"] == 0
+    assert result["xsl"] is None
+    with zipfile.ZipFile(output) as archive:
+        root = etree.fromstring(archive.read("word/document.xml"))
+    assert root.xpath(".//m:oMath", namespaces=NS)
+
+
+def test_convert_without_xsl_flag_does_not_crash(tmp_path: Path) -> None:
+    source = make_docx(tmp_path / "source.docx")
+    code = main(["convert", str(source), "--output", str(tmp_path / "out.docx")])
+    assert code in (0, 2)
+    assert (tmp_path / "out.docx").is_file()
