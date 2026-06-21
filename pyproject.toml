@@ -4,20 +4,22 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mathfmt"
-version = "0.1.0"
-description = "Typeset plain-text formulas in DOCX files as native Word equations."
+version = "0.2.0"
+description = "Typeset plain-text formulas in DOCX files as native Word equations — cross-platform, no Office required."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Leo" }]
-keywords = ["docx", "word", "math", "omml", "equation", "typesetting"]
+keywords = ["docx", "word", "math", "omml", "equation", "typesetting", "cross-platform"]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
   "Environment :: Console",
   "Intended Audience :: Education",
   "Intended Audience :: Science/Research",
+  "Operating System :: MacOS",
   "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",

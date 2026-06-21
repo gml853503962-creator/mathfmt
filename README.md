@@ -12,10 +12,7 @@ mathematical operators — suitable for textbooks, exams, and technical reports.
 
 ## Status
 
-**Alpha (v0.1.0).** Formula detection uses heuristic character-class scanning, not
-semantic understanding. False positives and false negatives are expected. Always
-review `candidates.json` before applying, or use `convert` only on formula-dense
-documents. See [Limitations](docs/formula-syntax.md#6-limitations).
+**Beta (v0.2.0).** Cross-platform OMML, confidence scoring, and expanded formula support.
 
 ---
 

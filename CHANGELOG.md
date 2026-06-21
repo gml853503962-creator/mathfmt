@@ -2,7 +2,7 @@
 
 All notable changes to MathFmt are documented here.
 
-## [Unreleased] — v0.2.0
+## [0.2.0] - 2026-06-21
 
 ### Added
 - Built-in pure-Python OMML generator — no Microsoft Office or `MML2OMML.XSL` required.
