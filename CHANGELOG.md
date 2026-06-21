@@ -2,39 +2,33 @@
 
 All notable changes to MathFmt are documented here.
 
-## [Unreleased]
+## [Unreleased] — v0.2.0
 
 ### Added
-- Built-in pure-Python OMML generator (`src/mathfmt/omml.py`) — no Microsoft Office or
-  `MML2OMML.XSL` required. Works on Windows, macOS, and Linux.
-- `mathfmt validate` command — offline DOCX structure and OMML correctness checks with
-  four-layer validation (package integrity, OMML structure, formula coverage, cross-backend).
-- `mathfmt doctor` now reports `backend: python` (default) or `backend: office-xsl`.
-- `apply` and `convert` commands no longer require `--xsl`; the Python backend is used
-  automatically when Office is not detected.
+- Built-in pure-Python OMML generator — no Microsoft Office or `MML2OMML.XSL` required.
+  Works on Windows, macOS, and Linux.
+- `mathfmt validate` — offline DOCX structure and OMML correctness checks (package
+  integrity, OMML structure, formula coverage, cross-backend comparison).
+- Confidence scoring (`high`/`medium`/`low`) on all scan candidates. Default `convert`
+  only applies high-confidence formulas. `--confidence` flag on `convert`.
+- Parser expansion: integrals (`∫`), summation (`∑`), matrices (`[[a,b],[c,d]]`),
+  vectors (`[x,y,z]`), piecewise (`{0,x<0;1,x>=0}`), and subscript limit (`lim_{x→0}`).
+- `doctor` now reports `backend: python` (default) or `backend: office-xsl`.
+- `apply` and `convert` no longer require `--xsl`; Python backend used automatically.
+- `.github/ISSUE_TEMPLATE/` with bug report and feature request templates.
+- `SECURITY.md` now includes explicit 7-day response timeline.
 
 ### Changed
-- `mathfmt_to_omml` now dispatches to XSL or Python backend based on availability.
-- `apply_docx(xsl_path)` parameter is now optional (`None` = Python backend).
-- Compatibility matrix updated: all platforms supported for OMML output.
+- `mathml_to_omml` dispatches to XSL or Python backend based on availability.
+- `apply_docx(xsl_path)` is now optional (`None` = Python backend).
+- `scan_docx` report upgraded to `schema_version: 2` with `confidence` fields.
+- Roadmap now includes target dates (Q3 2026, Q4 2026, 2027).
 
 ### Documentation
-- Added `docs/formula-syntax.md` — complete reference covering all preprocessing rules,
-  token types, BNF grammar, MathML output mapping, scanning heuristics, known limitations,
-  and error handling.
-- Added `docs/workflow.md` — step-by-step guide for installation, review-first and one-step
-  workflows, report interpretation, table/header/footer handling, CI usage, and troubleshooting.
-- Expanded `README.md` with 12 quick examples, OS×Python×Office compatibility matrix, alpha
-  status notice, version roadmap (v0.2 / v0.3 / v1.0), and maintenance policy.
-
-### Testing
-- Added 8 `pytest.mark.xfail` tests for known v0.1 limitations (integral, summation, matrix,
-  vector, piecewise, subscript limit, anchor-less scanning, cross-paragraph formulas).
-- Fixed stale `.pytest_cache` permission error by setting `--basetemp=.pytest_tmp`.
+- Added `docs/formula-syntax.md`, `docs/workflow.md`.
+- Expanded `README.md` with 12 quick examples, compatibility matrix, and version roadmap.
 
 ## [0.1.0] - 2026-06-21
 
-- Added review-first `scan` and `apply` commands.
-- Added conservative `convert` and environment `doctor` commands.
-- Added native Word equation output for DOCX body text, tables, headers, and footers.
-- Added Codex Skill, tests, bilingual documentation, and release automation.
+- Initial release: review-first `scan` and `apply`, conservative `convert`,
+  environment `doctor`, native Word OMML output, Codex Skill, tests, bilingual docs.

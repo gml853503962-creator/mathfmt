@@ -40,11 +40,11 @@ CODE_START_RE = re.compile(
     r"title\b|legend\b|hold\b|for\b|while\b|if\b|function\b|import\b|from\b)",
     re.IGNORECASE,
 )
-FORMULA_ANCHOR_RE = re.compile(r"(?:=|≠|<=|>=|!=|→|->|±|\+/-|√|sqrt|lim)")
+FORMULA_ANCHOR_RE = re.compile(r"(?:=|≠|<=|>=|!=|→|->|±|\+/-|√|sqrt|lim|∫|∑|∏)")
 MATH_CHARS = set(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
     "₀₁₂₃₄₅₆₇₈₉ₚᵥₜ⁰¹²³⁴⁵⁶⁷⁸⁹+-*/^=<>!~→⇒±≠≤≥≈√∞ΔπΓ"
-    "()[]{}.,'′˙¨·×÷_ \t"
+    "()[]{}.,'′˙¨·×÷_ \t∫∑∏;|"
 )
 TRIM_PUNCT = " \t,，.。;；:："
 
@@ -87,10 +87,12 @@ class FormulaError(ValueError):
 
 TOKEN_RE = re.compile(
     r"\s*(?:"
+    r"(?P<MATRIX_OPEN>\[\[)|"
+    r"(?P<MATRIX_CLOSE>\]\])|"
     r"(?P<NUMBER>\d+(?:[\.,]\d+)?)|"
-    r"(?P<IDENT>sqrt|lim|exp|sin|cos|tan|Delta|pi|inf|e[pv]|pPAIR|DERV\d+|[A-Za-z](?:\d+)?|[ΔπΓ∞])|"
-    r"(?P<OP><=|>=|!=|~=|->|=>|\+/-|[+\-*/^=<>±≠≤≥≈→⇒·×÷])|"
-    r"(?P<LPAREN>[\(\[\{])|(?P<RPAREN>[\)\]\}])|(?P<COMMA>,)"
+    r"(?P<IDENT>sqrt|lim|exp|sin|cos|tan|Delta|pi|inf|e[pv]|pPAIR|DERV\d+|[A-Za-z](?:\d+)?|[ΔπΓ∞∫∑∏])|"
+    r"(?P<OP><=|>=|!=|~=|->|=>|\+/-|[+\-*/^=<>±≠≤≥≈→⇒·×÷_])|"
+    r"(?P<LPAREN>[\(\[\{])|(?P<RPAREN>[\)\]\}])|(?P<COMMA>,)|(?P<SEMI>;)"
     r")"
 )
 
@@ -126,6 +128,8 @@ def preprocess_formula(source: str) -> tuple[str, dict[str, tuple[int, str, str]
             text = text[: match.start()] + key + text[match.end() :]
 
     text = text.replace("limₚ→0", "lim(p->0)").replace("limₜ→∞", "lim(t->inf)")
+    text = re.sub(r"lim_\{([^}]+)\}", r"lim(\1)", text)
+    text = re.sub(r"\b∑_\{([^{}]+)\}\^\{([^{}]+)\}", r"sum(\1,\2,", text)
     text = re.sub(r"([A-Za-z0-9)\]])([" + re.escape(SUPERSCRIPT_CHARS) + r"]+)",
                   lambda m: m.group(1) + "^" + "".join(SUPERSCRIPT_MAP[c] for c in m.group(2)), text)
     text = text.translate(SUBSCRIPT_MAP)
@@ -160,6 +164,18 @@ def tokenize(text: str) -> list[Token]:
     return tokens
 
 
+def _serialize_ast(node: Node) -> str:
+    if node.kind in {"number", "identifier"}:
+        return node.value or ""
+    if node.kind == "sequence":
+        return ",".join(_serialize_ast(c) for c in node.children)
+    if node.kind == "binary":
+        if node.value == "implicit":
+            return _serialize_ast(node.children[0]) + _serialize_ast(node.children[1])
+        return _serialize_ast(node.children[0]) + (node.value or "") + _serialize_ast(node.children[1])
+    return ""
+
+
 class Parser:
     def __init__(self, tokens: Sequence[Token], derivatives: dict[str, tuple[int, str, str]]):
         self.tokens = tokens
@@ -192,10 +208,18 @@ class Parser:
             raise FormulaError(f"Unexpected token: {self.current.value!r}")
         return node
 
-    def parse_sequence(self) -> Node:
+    def parse_sequence(self, semi_is_branch: bool = False) -> Node:
         nodes = [self.parse_relation()]
         while self.accept("COMMA"):
             nodes.append(self.parse_relation())
+        if semi_is_branch and self.current.kind == "SEMI":
+            branches = [Node("sequence", children=tuple(nodes))]
+            while self.accept("SEMI"):
+                branch_nodes = [self.parse_relation()]
+                while self.accept("COMMA"):
+                    branch_nodes.append(self.parse_relation())
+                branches.append(Node("sequence", children=tuple(branch_nodes)))
+            return Node("piecewise", children=tuple(branches))
         return nodes[0] if len(nodes) == 1 else Node("sequence", children=tuple(nodes))
 
     def parse_relation(self) -> Node:
@@ -215,7 +239,7 @@ class Parser:
         return node
 
     def starts_atom(self) -> bool:
-        return self.current.kind in {"NUMBER", "IDENT", "LPAREN"}
+        return self.current.kind in {"NUMBER", "IDENT", "LPAREN", "MATRIX_OPEN"}
 
     def parse_mul(self) -> Node:
         node = self.parse_power()
@@ -223,17 +247,29 @@ class Parser:
             if self.current.kind == "OP" and self.current.value in {"*", "·", "×", "/", "÷"}:
                 op = self.advance().value
                 node = Node("binary", "/" if op in {"/", "÷"} else "*", (node, self.parse_power()))
-            elif self.starts_atom():
+            elif self.starts_atom() and self.current.kind != "MATRIX_OPEN":
                 node = Node("binary", "implicit", (node, self.parse_power()))
             else:
                 break
         return node
 
     def parse_power(self) -> Node:
-        node = self.parse_unary()
+        node = self.parse_subsup()
         if self.current.kind == "OP" and self.current.value == "^":
             self.advance()
             node = Node("power", children=(node, self.parse_power()))
+        return node
+
+    def parse_subsup(self) -> Node:
+        node = self.parse_unary()
+        if self.current.kind == "OP" and self.current.value == "_":
+            self.advance()
+            sub = self.parse_unary()
+            if self.current.kind == "OP" and self.current.value == "^":
+                self.advance()
+                sup = self.parse_unary()
+                return Node("subsup", children=(node, sub, sup))
+            return Node("sub", children=(node, sub))
         return node
 
     def parse_unary(self) -> Node:
@@ -244,13 +280,22 @@ class Parser:
     def parse_group(self) -> Node:
         opener = self.expect("LPAREN").value
         closer = {"(": ")", "[": "]", "{": "}"}[opener]
-        child = self.parse_sequence()
+        child = self.parse_sequence(semi_is_branch=(opener == "{"))
         token = self.expect("RPAREN")
         if token.value != closer:
             raise FormulaError(f"Mismatched group: {opener}{token.value}")
+        if child.kind == "piecewise":
+            return child
+        if opener == "[" and child.kind == "sequence":
+            return Node("vector", children=child.children)
         return Node("group", opener + closer, (child,))
 
+    def _parse_nary(self, name: str) -> Node:
+        return Node("nary", name)
+
     def parse_atom(self) -> Node:
+        if token := self.accept("MATRIX_OPEN"):
+            return self._parse_matrix()
         if token := self.accept("NUMBER"):
             return Node("number", token.value)
         if self.current.kind == "LPAREN":
@@ -260,6 +305,8 @@ class Parser:
             if name in self.derivatives:
                 order, variable, argument = self.derivatives[name]
                 return Node("derivative", children=(Node("identifier", variable), Node("identifier", argument)), meta={"order": str(order)})
+            if name in {"∫", "∏", "∑"}:
+                return self._parse_nary(name)
             if self.current.kind == "LPAREN":
                 group = self.parse_group()
                 if name in {"sqrt", "√"}:
@@ -269,6 +316,22 @@ class Parser:
                 return Node("function", name, group.children)
             return Node("identifier", name)
         raise FormulaError(f"Expected formula atom, got {self.current.kind} {self.current.value!r}")
+
+    def _parse_matrix(self) -> Node:
+        rows: list[Node] = []
+        row = self.parse_sequence()
+        rows.append(row)
+        while self.accept("MATRIX_CLOSE") is None:
+            self.accept("RPAREN")
+            if self.accept("COMMA") or self.accept("SEMI"):
+                self.accept("LPAREN")
+                row = self.parse_sequence()
+                rows.append(row)
+            elif self.accept("MATRIX_CLOSE"):
+                break
+            else:
+                raise FormulaError("Expected ]] or , between matrix rows")
+        return Node("matrix", children=tuple(rows))
 
 
 def identifier_mathml(value: str) -> etree._Element:
@@ -374,6 +437,44 @@ def node_to_mathml(node: Node) -> etree._Element:
                 row.append(mml("mo", ","))
             row.append(node_to_mathml(child))
         return row
+    if node.kind == "vector":
+        row = mml("mrow")
+        for index, child in enumerate(node.children):
+            if index:
+                row.append(mml("mo", ","))
+            row.append(node_to_mathml(child))
+        return fenced(row, "[]")
+    if node.kind == "matrix":
+        table = mml("mtable")
+        for row_node in node.children:
+            tr = mml("mtr")
+            items = row_node.children if row_node.kind == "sequence" else (row_node,)
+            for item in items:
+                td = mml("mtd")
+                td.append(node_to_mathml(item))
+                tr.append(td)
+            table.append(tr)
+        return fenced(table, "[]")
+    if node.kind == "sub":
+        sub = mml("msub")
+        sub.append(node_to_mathml(node.children[0]))
+        sub.append(node_to_mathml(node.children[1]))
+        return sub
+    if node.kind == "subsup":
+        ss = mml("msubsup")
+        for child in node.children:
+            ss.append(node_to_mathml(child))
+        return ss
+    if node.kind == "nary":
+        nary_elem = mml("mo", node.value or "∫")
+        return nary_elem
+    if node.kind == "piecewise":
+        row = mml("mrow")
+        for i, branch in enumerate(node.children):
+            if i:
+                row.append(mml("mo", ";"))
+            row.append(node_to_mathml(branch))
+        return fenced(row, "{}")
     raise FormulaError(f"Unsupported AST node: {node.kind}")
 
 
@@ -507,7 +608,7 @@ def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
         raise FileNotFoundError(f"Input DOCX was not found: {input_path}")
     _, parts = inspect_docx(input_path)
     report: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "input": str(input_path.resolve()),
         "profile": {"derivatives": "fraction", "unit_step": "u(t)", "output": "native_word_omml"},
         "summary": {"paragraphs": 0, "candidates": 0, "existing_equations": 0, "drawing_paragraphs": 0, "code_paragraphs": 0},
@@ -539,9 +640,22 @@ def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
             for start, end, source in candidate_runs(text):
                 candidate_id = f"f{len(candidates) + 1:04d}"
                 display = text.strip() == source.strip()
+                score = math_score(source)
+                has_relation = bool(re.search(r"[=≠≤≥≈→⇒]", source))
+                has_func = bool(re.search(r"\([^)]*\)", source))
+                if score >= 8 and has_relation:
+                    confidence = "high"
+                    reason = "strong formula signal"
+                elif score >= 6 or (score >= 4 and (has_relation or has_func)):
+                    confidence = "medium"
+                    reason = "moderate formula signal"
+                else:
+                    confidence = "low"
+                    reason = "weak formula signal; likely prose"
+
                 candidate = {
                     "id": candidate_id,
-                    "selected": True,
+                    "selected": confidence == "high",
                     "part": part_name,
                     "paragraph_index": paragraph_index,
                     "start": start,
@@ -550,6 +664,8 @@ def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
                     "linear": source,
                     "display": display,
                     "paragraph_text": text,
+                    "confidence": confidence,
+                    "confidence_reason": reason,
                 }
                 try:
                     formula_to_mathml(source)

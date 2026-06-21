@@ -15,16 +15,8 @@ def qname(ns: str, local: str) -> str:
 INVISIBLE_TIMES = "⁢"
 
 MATHML_TAGS = {
-    "mi",
-    "mn",
-    "mo",
-    "mfrac",
-    "msqrt",
-    "msup",
-    "msub",
-    "mfenced",
-    "munder",
-    "mrow",
+    "mi", "mn", "mo", "mfrac", "msqrt", "msup", "msub", "msubsup",
+    "mfenced", "munder", "mrow", "mtable", "mtr", "mtd",
 }
 
 
@@ -59,10 +51,14 @@ def _convert(elem: etree._Element, parent: etree._Element) -> None:
         _script(elem, parent, "sSup", "sup")
     elif tag == "msub":
         _script(elem, parent, "sSub", "sub")
+    elif tag == "msubsup":
+        _subsup(elem, parent)
     elif tag == "mfenced":
         _delimiter(elem, parent)
     elif tag == "munder":
         _limit(elem, parent)
+    elif tag == "mtable":
+        _matrix(elem, parent)
     elif tag == "mrow":
         for child in elem:
             _convert(child, parent)
@@ -110,6 +106,19 @@ def _script(
         _convert(elem[1], script)
 
 
+def _subsup(elem: etree._Element, parent: etree._Element) -> None:
+    ss = etree.SubElement(parent, qname(M_NS, "sSubSup"))
+    e = etree.SubElement(ss, qname(M_NS, "e"))
+    if len(elem) > 0:
+        _convert(elem[0], e)
+    sub = etree.SubElement(ss, qname(M_NS, "sub"))
+    if len(elem) > 1:
+        _convert(elem[1], sub)
+    sup = etree.SubElement(ss, qname(M_NS, "sup"))
+    if len(elem) > 2:
+        _convert(elem[2], sup)
+
+
 def _delimiter(elem: etree._Element, parent: etree._Element) -> None:
     d = etree.SubElement(parent, qname(M_NS, "d"))
     d_pr = etree.SubElement(d, qname(M_NS, "dPr"))
@@ -130,3 +139,16 @@ def _limit(elem: etree._Element, parent: etree._Element) -> None:
     lim = etree.SubElement(lim_low, qname(M_NS, "lim"))
     if len(elem) > 1:
         _convert(elem[1], lim)
+
+
+def _matrix(elem: etree._Element, parent: etree._Element) -> None:
+    m = etree.SubElement(parent, qname(M_NS, "m"))
+    etree.SubElement(m, qname(M_NS, "mPr"))
+    # Add base justification for all columns
+    for child in elem:
+        if etree.QName(child).localname == "mtr":
+            mr = etree.SubElement(m, qname(M_NS, "mr"))
+            for td in child:
+                e = etree.SubElement(mr, qname(M_NS, "e"))
+                for cell_child in td:
+                    _convert(cell_child, e)

@@ -59,7 +59,7 @@ def test_tokenizer_accepts_trailing_space_and_rejects_unknown_text() -> None:
 
 def test_unknown_ast_node_is_rejected() -> None:
     with pytest.raises(FormulaError, match="Unsupported AST"):
-        node_to_mathml(Node("matrix"))
+        node_to_mathml(Node("not_a_real_node_kind"))
 
 
 def transform(source: str) -> etree.XSLT:

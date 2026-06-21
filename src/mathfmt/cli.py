@@ -70,6 +70,8 @@ def build_parser() -> argparse.ArgumentParser:
     convert.add_argument("--output", "--out", dest="output", type=Path)
     convert.add_argument("--report", type=Path)
     convert.add_argument("--xsl", type=Path)
+    convert.add_argument("--confidence", choices=["high", "medium", "all"], default="high",
+                         help="minimum confidence level to convert (default: high)")
 
     doctor = subparsers.add_parser("doctor", help="check the local MathFmt environment")
     doctor.add_argument("--xsl", type=Path)
@@ -96,6 +98,15 @@ def run_convert(args: argparse.Namespace) -> int:
     with tempfile.TemporaryDirectory(prefix="mathfmt-") as temp_dir:
         review_path = Path(temp_dir) / "candidates.json"
         scan = scan_docx(args.input, review_path)
+        if args.confidence != "all":
+            review = json.loads(review_path.read_text(encoding="utf-8"))
+            confidence_order = {"high": 0, "medium": 1, "low": 2}
+            min_level = confidence_order[args.confidence]
+            for c in review.get("candidates", []):
+                c_level = confidence_order.get(c.get("confidence"), 2)
+                if c_level > min_level:
+                    c["selected"] = False
+            review_path.write_text(json.dumps(review, ensure_ascii=False, indent=2), encoding="utf-8")
         result = apply_docx(args.input, review_path, output, report_path, xsl)
     print(f"Candidates: {scan['summary']['candidates']}")
     print(f"Converted: {result['converted_count']}")
