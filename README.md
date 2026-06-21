@@ -59,6 +59,7 @@ MathFmt 将 DOCX 中的普通文本公式排版为 Word 原生 OMML 公式。
 mathfmt scan    input.docx --report candidates.json   # 扫描公式候选
 mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json  # 审核后转换
 mathfmt convert input.docx                           # 保守一键转换
+mathfmt validate input.docx                           # 离线结构验证
 mathfmt doctor                                        # 环境诊断
 ```
 
@@ -122,6 +123,7 @@ MathFmt converts plain-text formulas in DOCX files into native Word OMML equatio
 mathfmt scan    input.docx --report candidates.json   # Scan formula candidates
 mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json  # Apply reviewed candidates
 mathfmt convert input.docx                           # Conservative one-step conversion
+mathfmt validate input.docx                           # Offline structure validation
 mathfmt doctor                                        # Environment check
 ```
 

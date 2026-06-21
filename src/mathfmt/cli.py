@@ -8,6 +8,7 @@ import os
 import platform
 import sys
 import tempfile
+import zipfile
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from lxml import etree
 
 from . import __version__
 from .core import apply_docx, find_xsl, scan_docx
+from .validate import validate_docx
 
 
 def default_output(input_path: Path) -> Path:
@@ -72,6 +74,12 @@ def build_parser() -> argparse.ArgumentParser:
     doctor = subparsers.add_parser("doctor", help="check the local MathFmt environment")
     doctor.add_argument("--xsl", type=Path)
     doctor.add_argument("--json", action="store_true", dest="as_json")
+
+    validate = subparsers.add_parser("validate", help="validate DOCX structure and OMML equations offline")
+    validate.add_argument("input", type=Path)
+    validate.add_argument("--report", type=Path)
+    validate.add_argument("--review", type=Path, help="path to candidates.json for formula coverage check")
+    validate.add_argument("--xsl", type=Path, help="path to MML2OMML.XSL for cross-backend comparison")
     return parser
 
 
@@ -140,9 +148,42 @@ def main(argv: Sequence[str] | None = None) -> int:
                     print(f"MML2OMML.XSL: {data['xsl']}")
                 print(f"Ready: {'yes' if data['ready'] else 'no'}")
             return 0 if data["ready"] else 1
+        if args.command == "validate":
+            if args.xsl is not None:
+                xsl_path = find_xsl(args.xsl)
+            else:
+                try:
+                    xsl_path = find_xsl()
+                except FileNotFoundError:
+                    xsl_path = None
+            report = validate_docx(
+                args.input,
+                review_path=args.review,
+                xsl_path=xsl_path,
+            )
+            if args.report:
+                args.report.parent.mkdir(parents=True, exist_ok=True)
+                args.report.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+                print(f"Report: {args.report}")
+            if report["valid"]:
+                print("Validation: PASS")
+                eq_count = report.get("omml", {}).get("equation_count", 0) if isinstance(report.get("omml"), dict) else 0
+                print(f"Equations: {eq_count}")
+                return 0
+            else:
+                print("Validation: FAIL")
+                oml = report.get("omml", {})
+                if isinstance(oml, dict):
+                    errors = oml.get("structural_errors", [])
+                    if errors:
+                        print(f"OMML errors: {len(errors)}")
+                return 1
     except (FileNotFoundError, ValueError, json.JSONDecodeError, etree.XMLSyntaxError) as exc:
         print(f"mathfmt: error: {exc}", file=sys.stderr)
         return 1
+    except zipfile.BadZipFile as exc:
+        print(f"mathfmt: error: {exc}", file=sys.stderr)
+        return 2
     return 1
 
 

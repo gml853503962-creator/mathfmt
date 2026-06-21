@@ -85,6 +85,29 @@ def make_docx(
     return path
 
 
+OMML_BODY_TEMPLATE = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+ xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
+ xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+ <w:body>
+  {content}
+  <w:sectPr>
+   <w:pgSz w:w="11906" w:h="16838"/>
+   <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720"/>
+  </w:sectPr>
+ </w:body>
+</w:document>"""
+
+
+def make_docx_with_omml(
+    path: Path,
+    *,
+    content: str = "",
+) -> Path:
+    """Build a minimal DOCX containing the given OMML body content."""
+    return make_docx(path, document_xml=OMML_BODY_TEMPLATE.format(content=content))
+
+
 def make_fake_xsl(path: Path) -> Path:
     path.write_text(FAKE_XSL, encoding="utf-8")
     return path

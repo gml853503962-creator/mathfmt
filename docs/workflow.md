@@ -177,7 +177,31 @@ mathfmt convert input.docx --output final.docx --report conversion.json
 
 ---
 
-## 5. Working with Tables
+## 5. Validating Output
+
+Use `mathfmt validate` to check DOCX correctness without opening Word:
+
+```powershell
+mathfmt validate output.docx --report validation.json
+```
+
+It performs four checks:
+
+| Layer | What | Detects |
+|---|---|---|
+| Package | ZIP validity, required XML parts | Corrupt files, missing parts |
+| OMML structure | Equation count, child checks, nesting depth | Empty equations, broken fractions, missing script parts |
+| Coverage | Formula parse & OMML round-trip (requires `--review`) | Unparseable sources, OMML generation failures |
+| Cross-backend | Python vs XSL element count (requires `--xsl`) | Structural divergence between backends |
+
+Exit codes:
+- `0` — all checks passed
+- `1` — issues found (see report)
+- `2` — input is unreadable or not a DOCX
+
+---
+
+## 6. Working with Tables
 
 Formulas in table cells are automatically detected and rendered with reduced font size.
 
@@ -191,13 +215,13 @@ The split logic respects bracket nesting — it will not break inside `(...)`, `
 
 ---
 
-## 6. Headers and Footers
+## 7. Headers and Footers
 
 MathFmt scans `word/header*.xml` and `word/footer*.xml` in addition to the document body. Formulas in headers and footers are converted the same way as body text formulas.
 
 ---
 
-## 7. CI / Headless Use
+## 8. CI / Headless Use
 
 MathFmt can run without a display:
 
@@ -220,7 +244,7 @@ The `doctor --json` output is machine-readable:
 
 ---
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 | Problem | Solution |
 |---|---|
