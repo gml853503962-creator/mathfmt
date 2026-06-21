@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mathfmt"
-version = "0.2.0"
+dynamic = ["version"]
 description = "Typeset plain-text formulas in DOCX files as native Word equations — cross-platform, no Office required."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -43,6 +43,9 @@ Issues = "https://github.com/gml853503962-creator/mathfmt/issues"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
+
+[tool.setuptools.dynamic]
+version = {attr = "mathfmt._version.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
