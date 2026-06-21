@@ -212,3 +212,45 @@ def test_update_check_flag_exits_0_when_up_to_date(
 
     monkeypatch.setattr(cli, "check_for_updates", lambda **kw: fake_info)
     assert cli.main(["update", "--check"]) == 0
+
+
+def test_update_network_error_exits_2_with_check(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from mathfmt.update import UpdateInfo
+
+    fake_info = UpdateInfo(
+        current_version="0.2.0",
+        latest_version="0.2.0",
+        is_update_available=False,
+        release_url="",
+        release_notes="",
+        published_at="",
+        install_commands=[],
+        error="Could not reach GitHub to check for updates.",
+    )
+
+    monkeypatch.setattr(cli, "check_for_updates", lambda **kw: fake_info)
+    assert cli.main(["update", "--check"]) == 2
+    assert "Could not reach GitHub" in capsys.readouterr().out
+
+
+def test_update_network_error_exits_2_without_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from mathfmt.update import UpdateInfo
+
+    fake_info = UpdateInfo(
+        current_version="0.2.0",
+        latest_version="0.2.0",
+        is_update_available=False,
+        release_url="",
+        release_notes="",
+        published_at="",
+        install_commands=[],
+        error="Could not reach GitHub to check for updates.",
+    )
+
+    monkeypatch.setattr(cli, "check_for_updates", lambda **kw: fake_info)
+    assert cli.main(["update"]) == 2

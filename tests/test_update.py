@@ -15,39 +15,72 @@ from mathfmt.update import (
     fetch_latest_release,
 )
 
+# ── _parse_semver ──────────────────────────────────────────────────
+
 
 class TestParseSemver:
-    def test_simple(self) -> None:
-        assert _parse_semver("0.2.0") == (0, 2, 0)
-        assert _parse_semver("1.0.0") == (1, 0, 0)
-        assert _parse_semver("0.10.5") == (0, 10, 5)
+    def test_stable(self) -> None:
+        # Stable versions carry a (1,) sentinel
+        assert _parse_semver("0.2.0") == (0, 2, 0, 1)
+        assert _parse_semver("1.0.0") == (1, 0, 0, 1)
+        assert _parse_semver("0.10.5") == (0, 10, 5, 1)
 
     def test_with_v_prefix(self) -> None:
-        assert _parse_semver("v0.2.0") == (0, 2, 0)
-        assert _parse_semver("v1.0.0") == (1, 0, 0)
+        assert _parse_semver("v0.2.0") == (0, 2, 0, 1)
+        assert _parse_semver("v1.0.0") == (1, 0, 0, 1)
 
-    def test_ordering(self) -> None:
+    def test_ordering_stable(self) -> None:
         assert _parse_semver("0.2.0") > _parse_semver("0.1.0")
         assert _parse_semver("0.10.0") > _parse_semver("0.2.0")
         assert _parse_semver("1.0.0") > _parse_semver("0.99.0")
         assert _parse_semver("0.2.0") == _parse_semver("v0.2.0")
 
-    def test_prerelease_suffix_is_stripped(self) -> None:
-        """0.2.1-beta.1 should parse as (0,2,1), not (0,2)."""
-        assert _parse_semver("0.2.1-beta.1") == (0, 2, 1)
-        assert _parse_semver("v0.3.0-rc.2") == (0, 3, 0)
-        assert _parse_semver("1.0.0-alpha+001") == (1, 0, 0)
+    # ── pre-release ────────────────────────────────────────────────
 
-    def test_prerelease_compared_correctly(self) -> None:
-        """A stable release after a pre-release should be detected."""
-        # 0.3.0 > 0.2.1-beta.1
-        assert _parse_semver("0.3.0") > _parse_semver("0.2.1-beta.1")
-        # 0.2.1 > 0.2.1-beta.1 (same as current — no update)
-        assert not _parse_semver("0.2.1") > _parse_semver("0.2.1-beta.1")
+    def test_stable_beats_prerelease(self) -> None:
+        """1.0.0 > 1.0.0-alpha — stable always newer than prerelease."""
+        assert _parse_semver("1.0.0") > _parse_semver("1.0.0-alpha")
+        assert _parse_semver("1.0.0") > _parse_semver("1.0.0-beta")
+        assert _parse_semver("1.0.0") > _parse_semver("1.0.0-rc.1")
+
+    def test_prerelease_less_than_stable_same_base(self) -> None:
+        """0.2.1-beta < 0.2.1 — prerelease always less."""
+        assert _parse_semver("0.2.1-beta") < _parse_semver("0.2.1")
+
+    def test_prerelease_labels_compared(self) -> None:
+        """alpha < beta < rc within same base version."""
+        assert _parse_semver("1.0.0-alpha") < _parse_semver("1.0.0-beta")
+        assert _parse_semver("1.0.0-beta") < _parse_semver("1.0.0-rc.1")
+        assert _parse_semver("1.0.0-alpha.1") > _parse_semver("1.0.0-alpha")
+        # Numeric segments sort BEFORE string segments (semver rule)
+        assert _parse_semver("1.0.0-1") < _parse_semver("1.0.0-alpha")
+
+    def test_prerelease_vs_higher_base_stable(self) -> None:
+        """0.3.0 > 0.2.1-beta — higher base always wins."""
+        assert _parse_semver("0.3.0") > _parse_semver("0.2.1-beta")
+
+    def test_prerelease_not_newer_than_same_stable(self) -> None:
+        """0.2.1-beta is NOT > 0.2.1 (prerelease < stable)."""
+        assert not _parse_semver("0.2.1-beta") > _parse_semver("0.2.1")
+
+    def test_prerelease_alpha_vs_beta_update(self) -> None:
+        """Going from alpha to beta IS an update."""
+        assert _parse_semver("1.0.0-beta") > _parse_semver("1.0.0-alpha")
+
+    def test_build_metadata_discarded(self) -> None:
+        """+001 etc. are ignored."""
+        assert _parse_semver("1.0.0-alpha+001") == _parse_semver("1.0.0-alpha")
+        assert _parse_semver("1.0.0+20130313144700") == _parse_semver("1.0.0")
 
     def test_malformed(self) -> None:
-        assert _parse_semver("not-a-version") == (0,)
-        assert _parse_semver("") == (0,)
+        # Malformed strings don't crash — they just degrade gracefully
+        assert isinstance(_parse_semver("not-a-version"), tuple)
+        assert isinstance(_parse_semver(""), tuple)
+        # Pure nonsense → numeric part is all zeros
+        assert _parse_semver("abc") == (0, 1)
+
+
+# ── _build_install_commands ──────────────────────────────────────────
 
 
 class TestBuildInstallCommands:
@@ -59,10 +92,11 @@ class TestBuildInstallCommands:
         assert any("github.com" in c for c in cmds)
 
     def test_no_f_string_without_placeholders(self) -> None:
-        """First and third commands are plain strings, not f-strings."""
         cmds = _build_install_commands("0.3.0")
-        # verify the commands are strings
         assert all(isinstance(c, str) for c in cmds)
+
+
+# ── UpdateInfo ─────────────────────────────────────────────────────
 
 
 class TestUpdateInfo:
@@ -105,16 +139,18 @@ class TestUpdateInfo:
         assert "Could not reach GitHub" in info.summary
 
 
+# ── fetch_latest_release ───────────────────────────────────────────
+
+
 class TestFetchLatestRelease:
     def test_returns_none_on_network_error(self) -> None:
         with patch("mathfmt.update.urlopen", side_effect=OSError("no network")):
-            result = fetch_latest_release()
-            assert result is None
+            assert fetch_latest_release() is None
 
     def test_returns_dict_on_success(self) -> None:
         fake_release = {
             "tag_name": "v0.3.0",
-            "html_url": "https://github.com/gml853503962-creator/mathfmt/releases/tag/v0.3.0",
+            "html_url": "https://github.com/.../releases/tag/v0.3.0",
             "body": "Release notes here.",
             "published_at": "2026-06-22T00:00:00Z",
             "prerelease": False,
@@ -154,20 +190,21 @@ class TestFetchLatestRelease:
             assert result["tag_name"] == "v0.3.0-beta"
 
 
+# ── check_for_updates ─────────────────────────────────────────────
+
+
 class TestCheckForUpdates:
     def test_network_failure_sets_error(self) -> None:
-        """When GitHub is unreachable, error should be set."""
         with patch("mathfmt.update.fetch_latest_release", return_value=None):
             with patch("mathfmt.update._load_cache", return_value=None):
                 info = check_for_updates(force=True)
                 assert not info.is_update_available
-                assert info.error != ""
                 assert "Could not reach GitHub" in info.error
 
     def test_detects_newer_version(self) -> None:
         fake_release = {
             "tag_name": "v0.3.0",
-            "html_url": "https://github.com/gml853503962-creator/mathfmt/releases/tag/v0.3.0",
+            "html_url": "https://github.com/.../releases/tag/v0.3.0",
             "body": "New release!",
             "published_at": "2026-06-22T00:00:00Z",
             "prerelease": False,
@@ -194,6 +231,41 @@ class TestCheckForUpdates:
             with patch("mathfmt.update._load_cache", return_value=None):
                 info = check_for_updates(force=True)
                 assert not info.is_update_available
+
+    def test_stable_not_updated_by_prerelease(self) -> None:
+        """Running on 1.0.0, latest tag is 1.0.0-rc.1 — NOT an update."""
+        fake_release = {
+            "tag_name": "v1.0.0-rc.1",
+            "html_url": "",
+            "body": "",
+            "published_at": "",
+            "prerelease": True,
+        }
+        with patch("mathfmt.update.__version__", "1.0.0"):
+            with patch("mathfmt.update.fetch_latest_release", return_value=fake_release):
+                with patch("mathfmt.update._load_cache", return_value=None):
+                    with patch("mathfmt.update._save_cache"):
+                        info = check_for_updates(force=True)
+                        assert not info.is_update_available, (
+                            f"stable {info.current_version} should NOT see "
+                            f"prerelease {info.latest_version} as newer"
+                        )
+
+    def test_prerelease_sees_newer_prerelease(self) -> None:
+        """Running 1.0.0-alpha, latest is 1.0.0-beta — IS an update."""
+        fake_release = {
+            "tag_name": "v1.0.0-beta",
+            "html_url": "",
+            "body": "",
+            "published_at": "",
+            "prerelease": True,
+        }
+        with patch("mathfmt.update.__version__", "1.0.0-alpha"):
+            with patch("mathfmt.update.fetch_latest_release", return_value=fake_release):
+                with patch("mathfmt.update._load_cache", return_value=None):
+                    with patch("mathfmt.update._save_cache"):
+                        info = check_for_updates(force=True)
+                        assert info.is_update_available
 
     def test_uses_cache_when_fresh(self) -> None:
         cached = {
@@ -226,7 +298,6 @@ class TestCheckForUpdates:
                     assert info.latest_version == "0.3.0"
 
     def test_prerelease_cache_isolated_from_stable(self, tmp_path: Path) -> None:
-        """A cache from --pre should not be used for a normal check, and vice versa."""
         prerelease_cache = {
             "checked_at": time.time(),
             "latest_version": "0.3.0-beta",
@@ -249,23 +320,45 @@ class TestCheckForUpdates:
             with patch("mathfmt.update.fetch_latest_release", return_value=fake_release):
                 with patch("mathfmt.update._save_cache"):
                     info = check_for_updates(include_prerelease=False)
-                    # prerelease cache should be rejected, fall through to fetch
                     assert info.latest_version == "0.2.0"
 
-    def test_load_cache_validates_required_keys(self) -> None:
-        """Cache missing required keys should be treated as absent."""
-        incomplete = {
-            "checked_at": time.time(),
-            # missing latest_version, is_update_available, prerelease
-        }
-        with patch("mathfmt.update.CACHE_FILE") as mock_file:
-            mock_file.is_file.return_value = True
-            mock_file.read_text.return_value = json.dumps(incomplete)
-            result = _load_cache(prerelease=False)
-            assert result is None
 
-    def test_load_cache_rejects_wrong_prerelease_mode(self) -> None:
-        """Cache stored for --pre should not match a non-pre request."""
+# ── _load_cache robustness ──────────────────────────────────────────
+
+
+class TestCache:
+    def test_load_cache_returns_none_for_missing_file(self) -> None:
+        with patch.object(Path, "is_file", return_value=False):
+            assert _load_cache(prerelease=False) is None
+
+    def test_load_cache_returns_none_for_invalid_json(self, tmp_path: Path) -> None:
+        bad_file = tmp_path / "bad.json"
+        bad_file.write_text("{invalid", encoding="utf-8")
+        with patch("mathfmt.update.CACHE_FILE", bad_file):
+            assert _load_cache(prerelease=False) is None
+
+    def test_load_cache_returns_none_for_json_array(self, tmp_path: Path) -> None:
+        """Cache root as [] should not crash on .keys()."""
+        array_file = tmp_path / "array.json"
+        array_file.write_text("[]", encoding="utf-8")
+        with patch("mathfmt.update.CACHE_FILE", array_file):
+            assert _load_cache(prerelease=False) is None
+
+    def test_load_cache_returns_none_for_json_primitive(self, tmp_path: Path) -> None:
+        """Cache root as 'hello' should not crash."""
+        prim_file = tmp_path / "prim.json"
+        prim_file.write_text('"hello"', encoding="utf-8")
+        with patch("mathfmt.update.CACHE_FILE", prim_file):
+            assert _load_cache(prerelease=False) is None
+
+    def test_load_cache_validates_required_keys(self, tmp_path: Path) -> None:
+        incomplete = {"checked_at": time.time()}
+        cache_path = tmp_path / "incomplete.json"
+        cache_path.write_text(json.dumps(incomplete), encoding="utf-8")
+        with patch("mathfmt.update.CACHE_FILE", cache_path):
+            assert _load_cache(prerelease=False) is None
+
+    def test_load_cache_rejects_wrong_prerelease_mode(self, tmp_path: Path) -> None:
         stable_cache = {
             "checked_at": time.time(),
             "latest_version": "0.3.0",
@@ -275,14 +368,12 @@ class TestCheckForUpdates:
             "release_notes": "",
             "published_at": "",
         }
-        with patch("mathfmt.update.CACHE_FILE") as mock_file:
-            mock_file.is_file.return_value = True
-            mock_file.read_text.return_value = json.dumps(stable_cache)
-            result = _load_cache(prerelease=True)
-            assert result is None
+        cache_path = tmp_path / "stable.json"
+        cache_path.write_text(json.dumps(stable_cache), encoding="utf-8")
+        with patch("mathfmt.update.CACHE_FILE", cache_path):
+            assert _load_cache(prerelease=True) is None
 
-    def test_load_cache_accepts_matching_prerelease_mode(self) -> None:
-        """Cache stored for --pre should match a --pre request."""
+    def test_load_cache_accepts_matching_prerelease_mode(self, tmp_path: Path) -> None:
         prerelease_cache = {
             "checked_at": time.time(),
             "latest_version": "0.3.0-beta",
@@ -292,26 +383,12 @@ class TestCheckForUpdates:
             "release_notes": "",
             "published_at": "",
         }
-        with patch("mathfmt.update.CACHE_FILE") as mock_file:
-            mock_file.is_file.return_value = True
-            mock_file.read_text.return_value = json.dumps(prerelease_cache)
+        cache_path = tmp_path / "prerelease.json"
+        cache_path.write_text(json.dumps(prerelease_cache), encoding="utf-8")
+        with patch("mathfmt.update.CACHE_FILE", cache_path):
             result = _load_cache(prerelease=True)
             assert result is not None
             assert result["latest_version"] == "0.3.0-beta"
-
-
-class TestCache:
-    def test_load_cache_returns_none_for_missing_file(self) -> None:
-        with patch.object(Path, "is_file", return_value=False):
-            assert _load_cache(prerelease=False) is None
-
-    def test_load_cache_returns_none_for_invalid_json(
-        self, tmp_path: Path
-    ) -> None:
-        bad_file = tmp_path / "bad.json"
-        bad_file.write_text("{invalid", encoding="utf-8")
-        with patch("mathfmt.update.CACHE_FILE", bad_file):
-            assert _load_cache(prerelease=False) is None
 
     def test_save_and_load_roundtrip(self, tmp_path: Path) -> None:
         fake_data: dict[str, object] = {

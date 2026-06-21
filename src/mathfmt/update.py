@@ -22,28 +22,45 @@ _REQUIRED_CACHE_KEYS = frozenset(
 )
 
 
-def _parse_semver(version: str) -> tuple[int, ...]:
-    """Parse a semver string like '0.2.0', 'v0.2.1-beta.1' into a tuple of ints.
+def _parse_semver(version: str) -> tuple:
+    """Parse a version string into a sortable tuple.
 
-    Pre-release suffixes (everything after the first ``-``) are stripped
-    before parsing so that ``(0,2,1)`` compares correctly against ``(0,2,0)``.
+    Stable: ``(major, minor, patch, 1)``
+    Prerelease: ``(major, minor, patch, 0) + segments``
+
+    Each segment is a ``(kind_flag, value)`` pair where *kind_flag*
+    is ``0`` for a numeric identifier and ``1`` for a string
+    identifier.  Numeric identifiers sort before string identifiers
+    (per SemVer 2.0), so ``1.0.0-alpha`` > ``1.0.0-1``.
+
+    Build metadata (``+...``) is discarded.
     """
     v = version.lstrip("v")
-    # Strip pre-release / build metadata
-    prerelease_sep = v.find("-")
-    if prerelease_sep != -1:
-        v = v[:prerelease_sep]
-    build_sep = v.find("+")
-    if build_sep != -1:
-        v = v[:build_sep]
-    parts = v.split(".")
-    result: list[int] = []
+    # Discard build metadata
+    v = v.split("+", 1)[0]
+
+    base, sep, prerelease_str = v.partition("-")
+    parts = base.split(".")
+    base_nums: list[int] = []
     for p in parts:
         try:
-            result.append(int(p))
+            base_nums.append(int(p))
         except ValueError:
-            result.append(0)
-    return tuple(result)
+            base_nums.append(0)
+
+    if not sep:
+        # Stable release — sentinel that sorts AFTER any prerelease
+        return tuple(base_nums) + (1,)
+
+    # Prerelease: segment the suffix
+    segments: list[tuple[int, object]] = []
+    for s in prerelease_str.split("."):
+        try:
+            segments.append((0, int(s)))  # numeric: kind=0 (lower priority)
+        except ValueError:
+            segments.append((1, s))       # string:  kind=1 (higher priority)
+
+    return tuple(base_nums) + (0,) + tuple(segments)
 
 
 def _load_cache(prerelease: bool) -> dict[str, Any] | None:
@@ -51,16 +68,20 @@ def _load_cache(prerelease: bool) -> dict[str, Any] | None:
     try:
         if not CACHE_FILE.is_file():
             return None
-        data = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
+        raw = CACHE_FILE.read_text(encoding="utf-8")
+        data = json.loads(raw)
     except (OSError, json.JSONDecodeError, ValueError):
         return None
 
-    # Validate required keys exist
-    if _REQUIRED_CACHE_KEYS - data.keys():
+    # Guard against non-dict root (e.g. []) and type errors on .keys()
+    if not isinstance(data, dict):
         return None
-
-    # Validate TTL
-    if time.time() - data["checked_at"] >= CACHE_TTL:
+    try:
+        if _REQUIRED_CACHE_KEYS - data.keys():
+            return None
+        if time.time() - data["checked_at"] >= CACHE_TTL:
+            return None
+    except (TypeError, KeyError):
         return None
 
     # Validate prerelease mode matches

@@ -215,8 +215,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 for cmd in info.install_commands:
                     print(f"  {cmd}")
             if args.check:
+                if info.error:
+                    return 2
                 return 0 if not info.is_update_available else 1
-            return 0
+            return 0 if not info.error else 2
     except (FileNotFoundError, ValueError, json.JSONDecodeError, etree.XMLSyntaxError) as exc:
         print(f"mathfmt: error: {exc}", file=sys.stderr)
         return 1
