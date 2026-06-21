@@ -104,10 +104,10 @@ def test_superscript_missing_e_is_flagged(tmp_path: Path) -> None:
 
 def test_deep_nesting_is_flagged(tmp_path: Path) -> None:
     # Build 10 nested mrow elements
-    inner = '<m:r><m:t>x</m:t></m:r>'
+    inner = "<m:r><m:t>x</m:t></m:r>"
     wrapped = inner
     for _ in range(10):
-        wrapped = f'<m:mrow>{wrapped}</m:mrow>'
+        wrapped = f"<m:mrow>{wrapped}</m:mrow>"
     source = make_docx_with_omml(
         tmp_path / "deep.docx",
         content=f'<w:p><m:oMath xmlns:m="{M_NS}">{wrapped}</m:oMath></w:p>',
@@ -131,7 +131,7 @@ def test_empty_text_run_is_counted(tmp_path: Path) -> None:
 def test_coverage_layer_with_review_passes_parseable_candidates(tmp_path: Path) -> None:
     source = make_docx_with_omml(
         tmp_path / "cov.docx",
-        content=f'<w:p>{omath_for("x = 1")}</w:p>',
+        content=f"<w:p>{omath_for('x = 1')}</w:p>",
     )
     review = tmp_path / "candidates.json"
     review.write_text(

@@ -64,15 +64,21 @@ def build_parser() -> argparse.ArgumentParser:
     apply.add_argument("--review", type=Path, required=True)
     apply.add_argument("--output", "--out", dest="output", type=Path, required=True)
     apply.add_argument("--report", type=Path, required=True)
-    apply.add_argument("--xsl", type=Path, help="path to MML2OMML.XSL (optional; built-in Python backend used otherwise)")
+    apply.add_argument(
+        "--xsl", type=Path, help="path to MML2OMML.XSL (optional; built-in Python backend used otherwise)"
+    )
 
     convert = subparsers.add_parser("convert", help="conservatively convert detected formulas in one step")
     convert.add_argument("input", type=Path)
     convert.add_argument("--output", "--out", dest="output", type=Path)
     convert.add_argument("--report", type=Path)
     convert.add_argument("--xsl", type=Path)
-    convert.add_argument("--confidence", choices=["high", "medium", "all"], default="high",
-                         help="minimum confidence level to convert (default: high)")
+    convert.add_argument(
+        "--confidence",
+        choices=["high", "medium", "all"],
+        default="high",
+        help="minimum confidence level to convert (default: high)",
+    )
 
     doctor = subparsers.add_parser("doctor", help="check the local MathFmt environment")
     doctor.add_argument("--xsl", type=Path)
@@ -85,12 +91,13 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--xsl", type=Path, help="path to MML2OMML.XSL for cross-backend comparison")
 
     update = subparsers.add_parser("update", help="check for newer MathFmt releases on GitHub")
-    update.add_argument("--check", action="store_true",
-                        help="only check; exit 0 if up-to-date, exit 1 if update available")
-    update.add_argument("--pre", action="store_true", dest="include_prerelease",
-                        help="include pre-release versions")
-    update.add_argument("--force", action="store_true",
-                        help="bypass cache and re-check GitHub immediately")
+    update.add_argument(
+        "--check", action="store_true", help="only check; exit 0 if up-to-date, exit 1 if update available"
+    )
+    update.add_argument(
+        "--pre", action="store_true", dest="include_prerelease", help="include pre-release versions"
+    )
+    update.add_argument("--force", action="store_true", help="bypass cache and re-check GitHub immediately")
     return parser
 
 
@@ -187,7 +194,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"Report: {args.report}")
             if report["valid"]:
                 print("Validation: PASS")
-                eq_count = report.get("omml", {}).get("equation_count", 0) if isinstance(report.get("omml"), dict) else 0
+                eq_count = (
+                    report.get("omml", {}).get("equation_count", 0)
+                    if isinstance(report.get("omml"), dict)
+                    else 0
+                )
                 print(f"Equations: {eq_count}")
                 return 0
             else:

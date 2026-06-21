@@ -10,6 +10,6 @@ def test_skill_layout_and_metadata() -> None:
 
     assert skill_text.startswith("---\nname: mathfmt\ndescription: ")
     assert "[TODO" not in skill_text
-    assert "display_name: \"MathFmt\"" in agent_text
+    assert 'display_name: "MathFmt"' in agent_text
     assert "$mathfmt" in agent_text
     assert reference.is_file()

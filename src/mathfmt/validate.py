@@ -85,9 +85,7 @@ def _validate_omml_structure(
         for omath in equations:
             # Empty check
             if not len(omath):
-                result["structural_errors"].append(
-                    {"part": name, "error": "Empty m:oMath element"}
-                )
+                result["structural_errors"].append({"part": name, "error": "Empty m:oMath element"})
                 continue
 
             # Nesting depth
@@ -110,16 +108,12 @@ def _validate_omml_structure(
                 has_num = mf.xpath("boolean(./m:num)", namespaces=NS)
                 has_den = mf.xpath("boolean(./m:den)", namespaces=NS)
                 if not (has_num and has_den):
-                    result["structural_errors"].append(
-                        {"part": name, "error": "m:f missing num or den"}
-                    )
+                    result["structural_errors"].append({"part": name, "error": "m:f missing num or den"})
 
             # Radical structural check
             for mrad in omath.xpath(".//m:rad", namespaces=NS):
                 if not mrad.xpath("boolean(./m:e)", namespaces=NS):
-                    result["structural_errors"].append(
-                        {"part": name, "error": "m:rad missing e"}
-                    )
+                    result["structural_errors"].append({"part": name, "error": "m:rad missing e"})
 
             # Script structural checks
             for tag, roles in [("m:sSup", ["e", "sup"]), ("m:sSub", ["e", "sub"])]:
@@ -284,9 +278,7 @@ def validate_docx(
 
         # Layer 4: cross-backend (requires candidates + XSL)
         if xsl_path is not None:
-            report["cross_backend"] = _validate_cross_backend(
-                review.get("candidates", []), xsl_path
-            )
+            report["cross_backend"] = _validate_cross_backend(review.get("candidates", []), xsl_path)
 
     # Determine overall validity
     has_issues = False

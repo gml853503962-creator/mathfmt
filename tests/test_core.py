@@ -148,9 +148,7 @@ def test_math_run_font_size_updates_existing_and_new_properties() -> None:
 
 
 def test_text_run_clone_preserves_formatting_and_spaces() -> None:
-    run = etree.fromstring(
-        f"<w:r xmlns:w='{W_NS}'><w:rPr><w:b/></w:rPr><w:t>old</w:t></w:r>"
-    )
+    run = etree.fromstring(f"<w:r xmlns:w='{W_NS}'><w:rPr><w:b/></w:rPr><w:t>old</w:t></w:r>")
     cloned = run_with_text_like(run, " suffix ")
     assert cloned.xpath("boolean(./w:rPr/w:b)", namespaces=NS)
     text = cloned.find(qname(W_NS, "t"))

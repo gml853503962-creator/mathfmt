@@ -29,9 +29,22 @@ SUBSCRIPT_MAP = str.maketrans(
     "0123456789+-=()aehijklmnop rstuvx".replace(" ", ""),
 )
 SUPERSCRIPT_MAP = {
-    "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4",
-    "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9",
-    "⁺": "+", "⁻": "-", "⁼": "=", "⁽": "(", "⁾": ")", "ⁿ": "n",
+    "⁰": "0",
+    "¹": "1",
+    "²": "2",
+    "³": "3",
+    "⁴": "4",
+    "⁵": "5",
+    "⁶": "6",
+    "⁷": "7",
+    "⁸": "8",
+    "⁹": "9",
+    "⁺": "+",
+    "⁻": "-",
+    "⁼": "=",
+    "⁽": "(",
+    "⁾": ")",
+    "ⁿ": "n",
 }
 SUPERSCRIPT_CHARS = "".join(SUPERSCRIPT_MAP)
 
@@ -130,8 +143,11 @@ def preprocess_formula(source: str) -> tuple[str, dict[str, tuple[int, str, str]
     text = text.replace("limₚ→0", "lim(p->0)").replace("limₜ→∞", "lim(t->inf)")
     text = re.sub(r"lim_\{([^}]+)\}", r"lim(\1)", text)
     text = re.sub(r"\b∑_\{([^{}]+)\}\^\{([^{}]+)\}", r"sum(\1,\2,", text)
-    text = re.sub(r"([A-Za-z0-9)\]])([" + re.escape(SUPERSCRIPT_CHARS) + r"]+)",
-                  lambda m: m.group(1) + "^" + "".join(SUPERSCRIPT_MAP[c] for c in m.group(2)), text)
+    text = re.sub(
+        r"([A-Za-z0-9)\]])([" + re.escape(SUPERSCRIPT_CHARS) + r"]+)",
+        lambda m: m.group(1) + "^" + "".join(SUPERSCRIPT_MAP[c] for c in m.group(2)),
+        text,
+    )
     text = text.translate(SUBSCRIPT_MAP)
     text = re.sub(r"\bp1\s*,\s*2\b", "pPAIR", text)
     text = text.replace("√", "sqrt").replace("+/-", "±")
@@ -154,7 +170,7 @@ def tokenize(text: str) -> list[Token]:
         if not match:
             if text[position:].strip() == "":
                 break
-            raise FormulaError(f"Unrecognized formula text near: {text[position:position + 24]!r}")
+            raise FormulaError(f"Unrecognized formula text near: {text[position : position + 24]!r}")
         kind = match.lastgroup
         if kind is None:
             raise FormulaError("Tokenizer produced an empty token")
@@ -225,7 +241,15 @@ class Parser:
     def parse_relation(self) -> Node:
         node = self.parse_add()
         while self.current.kind == "OP" and self.current.value in {
-            "=", "<", ">", "≤", "≥", "≠", "~=", "→", "⇒",
+            "=",
+            "<",
+            ">",
+            "≤",
+            "≥",
+            "≠",
+            "~=",
+            "→",
+            "⇒",
         }:
             op = self.advance().value
             node = Node("binary", op, (node, self.parse_add()))
@@ -304,7 +328,11 @@ class Parser:
             name = token.value
             if name in self.derivatives:
                 order, variable, argument = self.derivatives[name]
-                return Node("derivative", children=(Node("identifier", variable), Node("identifier", argument)), meta={"order": str(order)})
+                return Node(
+                    "derivative",
+                    children=(Node("identifier", variable), Node("identifier", argument)),
+                    meta={"order": str(order)},
+                )
             if name in {"∫", "∏", "∑"}:
                 return self._parse_nary(name)
             if self.current.kind == "LPAREN":
@@ -611,7 +639,13 @@ def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
         "schema_version": 2,
         "input": str(input_path.resolve()),
         "profile": {"derivatives": "fraction", "unit_step": "u(t)", "output": "native_word_omml"},
-        "summary": {"paragraphs": 0, "candidates": 0, "existing_equations": 0, "drawing_paragraphs": 0, "code_paragraphs": 0},
+        "summary": {
+            "paragraphs": 0,
+            "candidates": 0,
+            "existing_equations": 0,
+            "drawing_paragraphs": 0,
+            "code_paragraphs": 0,
+        },
         "candidates": [],
     }
     candidates: list[dict[str, object]] = []
@@ -783,7 +817,9 @@ def split_top_level_additive(text: str, target_length: int = 30) -> list[str]:
                 starts.append(index)
     if len(starts) == 1:
         return [text]
-    terms = [text[starts[i] : starts[i + 1] if i + 1 < len(starts) else len(text)] for i in range(len(starts))]
+    terms = [
+        text[starts[i] : starts[i + 1] if i + 1 < len(starts) else len(text)] for i in range(len(starts))
+    ]
     lines: list[str] = []
     current = ""
     for term in terms:
@@ -887,9 +923,13 @@ def apply_docx(
                 else:
                     omath = equations[0]
                     replace_inline_span(paragraph, start, end, omath)
-                result["converted"].append({"id": candidate.get("id"), "source": source, "part": part_name, "lines": len(equations)})
+                result["converted"].append(
+                    {"id": candidate.get("id"), "source": source, "part": part_name, "lines": len(equations)}
+                )
             except Exception as exc:
-                result["skipped"].append({"id": candidate.get("id"), "source": candidate.get("source"), "error": str(exc)})
+                result["skipped"].append(
+                    {"id": candidate.get("id"), "source": candidate.get("source"), "error": str(exc)}
+                )
         parts[part_name] = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)

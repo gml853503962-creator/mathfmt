@@ -169,9 +169,7 @@ def test_apply_preserves_mixed_text_across_runs(tmp_path: Path) -> None:
 
 
 def test_apply_preserves_single_run_suffix_formatting(tmp_path: Path) -> None:
-    document = document_with_body(
-        "<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Before x = 1 after</w:t></w:r></w:p>"
-    )
+    document = document_with_body("<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Before x = 1 after</w:t></w:r></w:p>")
     source = make_docx(tmp_path / "source.docx", document_xml=document)
     review = tmp_path / "review.json"
     review.write_text(
@@ -263,9 +261,7 @@ def test_apply_rejects_invalid_extensions_and_nested_hyperlink(tmp_path: Path) -
     with pytest.raises(ValueError, match="must be .docx"):
         apply_docx(source, review, tmp_path / "output.txt", tmp_path / "result.json", xsl)
 
-    nested_document = document_with_body(
-        "<w:p><w:hyperlink><w:r><w:t>x = 1</w:t></w:r></w:hyperlink></w:p>"
-    )
+    nested_document = document_with_body("<w:p><w:hyperlink><w:r><w:t>x = 1</w:t></w:r></w:hyperlink></w:p>")
     nested = make_docx(tmp_path / "nested.docx", document_xml=nested_document)
     nested_review = tmp_path / "nested.json"
     nested_review.write_text(

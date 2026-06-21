@@ -45,20 +45,23 @@ def test_scan_and_apply_commands(tmp_path: Path, capsys: pytest.CaptureFixture[s
 
     assert cli.main(["scan", str(source), "--report", str(review)]) == 0
     assert "Candidates:" in capsys.readouterr().out
-    assert cli.main(
-        [
-            "apply",
-            str(source),
-            "--review",
-            str(review),
-            "--output",
-            str(output),
-            "--report",
-            str(result),
-            "--xsl",
-            str(xsl),
-        ]
-    ) == 0
+    assert (
+        cli.main(
+            [
+                "apply",
+                str(source),
+                "--review",
+                str(review),
+                "--output",
+                str(output),
+                "--report",
+                str(result),
+                "--xsl",
+                str(xsl),
+            ]
+        )
+        == 0
+    )
     assert output.is_file()
     assert "Converted:" in capsys.readouterr().out
 

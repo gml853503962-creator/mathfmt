@@ -100,11 +100,13 @@ def test_confidence_scoring_in_scan(tmp_path: Path) -> None:
 @pytest.mark.xfail(reason="Heuristic scan may miss formulas without anchor operators (= ≠ ≤ etc.)")
 def test_scan_misses_formulas_without_anchors() -> None:
     from mathfmt.core import candidate_runs
+
     assert len(candidate_runs("a b c d e f")) > 0
 
 
 @pytest.mark.xfail(reason="Cross-paragraph formulas not merged — each paragraph scanned independently")
 def test_cross_paragraph_formula_detection() -> None:
     from mathfmt.core import candidate_runs
+
     candidates = candidate_runs("x = 1\n+ 2")
     assert len(candidates) > 0

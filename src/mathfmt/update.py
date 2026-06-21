@@ -17,9 +17,7 @@ CACHE_FILE = Path.home() / ".cache" / "mathfmt" / "update-check.json"
 CACHE_TTL = 3600  # 1 hour
 
 # Required keys that every cache entry must contain.
-_REQUIRED_CACHE_KEYS = frozenset(
-    {"checked_at", "latest_version", "is_update_available", "prerelease"}
-)
+_REQUIRED_CACHE_KEYS = frozenset({"checked_at", "latest_version", "is_update_available", "prerelease"})
 
 
 def _parse_semver(version: str) -> tuple:
@@ -58,7 +56,7 @@ def _parse_semver(version: str) -> tuple:
         try:
             segments.append((0, int(s)))  # numeric: kind=0 (lower priority)
         except ValueError:
-            segments.append((1, s))       # string:  kind=1 (higher priority)
+            segments.append((1, s))  # string:  kind=1 (higher priority)
 
     return tuple(base_nums) + (0,) + tuple(segments)
 
@@ -119,10 +117,7 @@ class UpdateInfo:
             return f"MathFmt {self.current_version}: {self.error}"
         if not self.is_update_available:
             return f"MathFmt {self.current_version} is up to date."
-        return (
-            f"MathFmt {self.latest_version} is available "
-            f"(you have {self.current_version})."
-        )
+        return f"MathFmt {self.latest_version} is available (you have {self.current_version})."
 
 
 def fetch_latest_release(include_prerelease: bool = False) -> dict[str, Any] | None:
@@ -215,15 +210,17 @@ def check_for_updates(
     )
 
     # Cache the result
-    _save_cache({
-        "checked_at": time.time(),
-        "latest_version": latest_version,
-        "is_update_available": is_update,
-        "prerelease": include_prerelease,
-        "release_url": info.release_url,
-        "release_notes": info.release_notes,
-        "published_at": info.published_at,
-    })
+    _save_cache(
+        {
+            "checked_at": time.time(),
+            "latest_version": latest_version,
+            "is_update_available": is_update,
+            "prerelease": include_prerelease,
+            "release_url": info.release_url,
+            "release_notes": info.release_notes,
+            "published_at": info.published_at,
+        }
+    )
 
     return info
 

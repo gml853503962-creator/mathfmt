@@ -156,8 +156,8 @@ class TestFetchLatestRelease:
             "prerelease": False,
         }
         with patch("mathfmt.update.urlopen") as mock_open:
-            mock_open.return_value.__enter__.return_value.read.return_value = (
-                json.dumps(fake_release).encode("utf-8")
+            mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(fake_release).encode(
+                "utf-8"
             )
             result = fetch_latest_release()
             assert result is not None
@@ -169,8 +169,8 @@ class TestFetchLatestRelease:
             {"tag_name": "v0.2.0", "prerelease": False},
         ]
         with patch("mathfmt.update.urlopen") as mock_open:
-            mock_open.return_value.__enter__.return_value.read.return_value = (
-                json.dumps(releases).encode("utf-8")
+            mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(releases).encode(
+                "utf-8"
             )
             result = fetch_latest_release(include_prerelease=False)
             assert result is not None
@@ -182,8 +182,8 @@ class TestFetchLatestRelease:
             {"tag_name": "v0.2.0", "prerelease": False},
         ]
         with patch("mathfmt.update.urlopen") as mock_open:
-            mock_open.return_value.__enter__.return_value.read.return_value = (
-                json.dumps(releases).encode("utf-8")
+            mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(releases).encode(
+                "utf-8"
             )
             result = fetch_latest_release(include_prerelease=True)
             assert result is not None

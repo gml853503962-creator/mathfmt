@@ -2,6 +2,23 @@
 
 All notable changes to MathFmt are documented here.
 
+## [0.2.2] - 2026-06-21
+
+### Fixed
+- Ruff/CI errors resolved (unused imports, f-string without placeholders, import order).
+- Stable and pre-release update caches are now isolated — running `--pre` no longer
+  poisons the normal update check, and vice versa.
+- SemVer pre-release labels (`alpha`, `beta`, `rc`) are now compared correctly per
+  SemVer 2.0 — a stable release sorts after any pre-release with the same base.
+- Network failures during `mathfmt update` now exit with code 2 instead of 0,
+  so CI scripts can distinguish "up-to-date" from "could not check."
+- Malformed cache files (JSON arrays, primitives, missing keys) no longer crash
+  `_load_cache`.
+- `mathfmt validate` now reports the actual installed version instead of a
+  hardcoded string.
+- README version roadmaps (Chinese and English) reflect actual release dates.
+- Maintainer email `gml853503962@gmail.com` added to package metadata.
+
 ## [0.2.1] - 2026-06-21
 
 ### Added
@@ -9,20 +26,6 @@ All notable changes to MathFmt are documented here.
   instructions. Supports `--check` (CI-friendly exit codes), `--pre` (pre-releases),
   and `--force` (bypass 1-hour cache).
 - `mathfmt.update` public API: `check_for_updates()`, `UpdateInfo`, `fetch_latest_release()`.
-
-### Fixed
-- `--pre` cache isolated from stable checks — stale prerelease data won't leak
-  into normal update queries, and vice versa.
-- Network errors now set `error` field instead of silently reporting "up to date",
-  so CI scripts using `--check` get an actionable message.
-- Semver parser now strips pre-release suffixes (`-beta.1`, `-rc.2`) so version
-  comparison yields correct results.
-- Malformed cache files (missing keys) are treated as absent instead of raising
-  `KeyError`.
-- Validate report now emits the actual package version instead of a hardcoded
-  `0.1.0` string.
-- README version and build status badge updated to reflect v0.2.1.
-- Five ruff lint errors resolved (unused imports, f-string without placeholders).
 
 ## [0.2.0] - 2026-06-21
 

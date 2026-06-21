@@ -14,3 +14,5 @@ work/
 *.tmp
 *.pdf
 page-*.png
+.claude/settings.local.json
+.claude/memory.md

@@ -15,8 +15,20 @@ def qname(ns: str, local: str) -> str:
 INVISIBLE_TIMES = "⁢"
 
 MATHML_TAGS = {
-    "mi", "mn", "mo", "mfrac", "msqrt", "msup", "msub", "msubsup",
-    "mfenced", "munder", "mrow", "mtable", "mtr", "mtd",
+    "mi",
+    "mn",
+    "mo",
+    "mfrac",
+    "msqrt",
+    "msup",
+    "msub",
+    "msubsup",
+    "mfenced",
+    "munder",
+    "mrow",
+    "mtable",
+    "mtr",
+    "mtd",
 }
 
 

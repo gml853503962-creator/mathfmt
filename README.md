@@ -12,7 +12,7 @@ mathematical operators — suitable for textbooks, exams, and technical reports.
 
 ## Status
 
-**Beta (v0.2.1).** Cross-platform OMML, confidence scoring, expanded formula support, and self-update.
+**Beta (v0.2.2).** Cross-platform OMML, confidence scoring, expanded formula support, self-update, and bug fixes.
 
 ---
 
@@ -83,6 +83,7 @@ pip install --upgrade mathfmt
 | **0.1.0** (2026-06-21) | 基础扫描、审核、转换；原生 Word 公式输出；Windows + Office |
 | **0.2.0** (2026-06-21) | 跨平台内置 OMML；置信度评分；独立验证；积分/求和/矩阵/向量/分段 |
 | **0.2.1** (2026-06-21) | GitHub 自更新；缓存隔离；SemVer 预发布支持 |
+| **0.2.2** (2026-06-21) | CI/Ruff 修复；缓存崩溃修复；退出码修正；验证报告版本 |
 | **0.3.0** (2026-Q4) | 正式语法引擎；LaTeX 输入；性能优化 |
 | **1.0.0** (2027) | 稳定 API；长期支持 |
 
@@ -166,6 +167,7 @@ pip install --upgrade mathfmt
 | **0.1.0** (2026-06-21) | Scan, review, convert; native Word OMML; Windows + Office |
 | **0.2.0** (2026-06-21) | Cross-platform built-in OMML; confidence scoring; validate; integrals, sums, matrices |
 | **0.2.1** (2026-06-21) | GitHub self-update; cache isolation; SemVer pre-release support |
+| **0.2.2** (2026-06-21) | CI/Ruff fixes; cache crash fix; exit code correction; validate version |
 | **0.3.0** (2026-Q4) | Formal grammar engine; LaTeX input; performance |
 | **1.0.0** (2027) | Stable API; long-term support |
 

@@ -51,7 +51,7 @@ version = {attr = "mathfmt._version.__version__"}
 where = ["src"]
 
 [tool.pytest.ini_options]
-addopts = "-ra --strict-markers --basetemp=.pytest_tmp --cov=mathfmt --cov-branch --cov-report=term-missing --cov-report=xml:coverage.xml --cov-report=html:htmlcov --cov-fail-under=85"
+addopts = "-ra --strict-markers --cov=mathfmt --cov-branch --cov-report=term-missing --cov-report=xml:coverage.xml --cov-report=html:htmlcov --cov-fail-under=85"
 testpaths = ["tests"]
 filterwarnings = [
   "ignore::pytest.PytestCacheWarning",
