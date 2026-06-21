@@ -4,7 +4,7 @@ All notable changes to MathFmt are documented here.
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-06-20
+## [0.1.0] - 2026-06-21
 
 - Added review-first `scan` and `apply` commands.
 - Added conservative `convert` and environment `doctor` commands.
