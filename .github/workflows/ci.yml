@@ -6,11 +6,20 @@ on:
 
 jobs:
   test:
-    runs-on: windows-latest
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        include:
+          - { os: windows-latest, python-version: "3.10" }
+          - { os: windows-latest, python-version: "3.11" }
+          - { os: windows-latest, python-version: "3.12" }
+          - { os: windows-latest, python-version: "3.13" }
+          - { os: ubuntu-latest, python-version: "3.10" }
+          - { os: ubuntu-latest, python-version: "3.13" }
+          - { os: macos-latest, python-version: "3.10" }
+          - { os: macos-latest, python-version: "3.13" }
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -19,6 +28,46 @@ jobs:
           cache: pip
       - run: python -m pip install -e ".[dev]"
       - run: ruff check .
-      - run: pytest
+      - run: pytest -m "not native_xsl"
+      - name: Test native Office XSL when available
+        if: runner.os == 'Windows'
+        run: pytest -m native_xsl --no-cov
       - run: mathfmt --version
+      - name: Add coverage summary
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          root = ET.parse("coverage.xml").getroot()
+          percent = float(root.attrib["line-rate"]) * 100
+          summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          with summary.open("a", encoding="utf-8") as stream:
+              stream.write(f"## Coverage\n\n**{percent:.1f}%** line coverage on {os.name}.\n")
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: |
+            coverage.xml
+            htmlcov/
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build
       - run: python -m build
+      - run: python -m pip install dist/*.whl
+      - run: mathfmt --version
+      - name: Verify doctor starts without Office
+        run: python -c "import subprocess; r = subprocess.run(['mathfmt', 'doctor']); assert r.returncode in (0, 1)"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: python-package
+          path: dist/

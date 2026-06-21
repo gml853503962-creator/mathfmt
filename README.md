@@ -1,5 +1,7 @@
 # MathFmt
 
+[![CI](https://github.com/gml853503962-creator/mathfmt/actions/workflows/ci.yml/badge.svg)](https://github.com/gml853503962-creator/mathfmt/actions/workflows/ci.yml)
+
 [中文](#中文) | [English](#english)
 
 MathFmt turns awkward plain-text formulas in Word documents into native Word equations suitable for
@@ -60,6 +62,16 @@ mathfmt apply input.docx --review candidates.json --output output.docx --report 
 
 仓库中的 `skills/mathfmt` 可复制到 Codex 技能目录。技能依赖已安装的 `mathfmt` 命令。
 
+### 开发与测试
+
+```powershell
+python -m pip install -e ".[dev]"
+pytest
+ruff check .
+```
+
+测试要求总覆盖率不低于 85%。运行后可在 `htmlcov/index.html` 查看详细覆盖率；CI 会在任务摘要中显示覆盖率，并上传 HTML 与 XML 报告。
+
 ## English
 
 MathFmt converts plain-text formulas in DOCX files into native Word OMML equations with stacked
@@ -85,6 +97,17 @@ mathfmt convert input.docx
 ```
 
 For review-first conversion, run `scan`, edit the generated JSON, then run `apply` as shown above.
+
+### Development and testing
+
+```powershell
+python -m pip install -e ".[dev]"
+pytest
+ruff check .
+```
+
+The test suite enforces at least 85% total coverage. Open `htmlcov/index.html` after a run for the
+detailed report. CI also publishes a coverage summary and uploads the HTML and XML reports.
 
 ## Contributing
 

@@ -29,7 +29,7 @@ classifiers = [
 dependencies = ["lxml>=5.0"]
 
 [project.optional-dependencies]
-dev = ["build>=1.2", "pytest>=8.0", "ruff>=0.6"]
+dev = ["build>=1.2", "pytest>=8.0", "pytest-cov>=7.0", "ruff>=0.6"]
 
 [project.scripts]
 mathfmt = "mathfmt.cli:main"
@@ -46,8 +46,22 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.pytest.ini_options]
-addopts = "-ra"
+addopts = "-ra --strict-markers --cov=mathfmt --cov-branch --cov-report=term-missing --cov-report=xml:coverage.xml --cov-report=html:htmlcov --cov-fail-under=85"
 testpaths = ["tests"]
+markers = [
+  "native_xsl: requires Microsoft Office MML2OMML.XSL",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["mathfmt"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_also = [
+  "if __name__ == .__main__.:",
+]
 
 [tool.ruff]
 line-length = 110

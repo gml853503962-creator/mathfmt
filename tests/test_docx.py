@@ -8,8 +8,13 @@ import pytest
 from lxml import etree
 
 from mathfmt.cli import main
-from mathfmt.core import M_NS, NS, apply_docx, find_xsl, scan_docx
+from mathfmt.core import M_NS, NS, W_NS, apply_docx, find_xsl, paragraph_text, scan_docx
 from tests.helpers import make_docx, make_fake_xsl
+
+
+def document_with_body(body: str) -> str:
+    return f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="{W_NS}" xmlns:m="{M_NS}"><w:body>{body}</w:body></w:document>"""
 
 
 def test_scan_reports_supported_parts_and_skips(tmp_path: Path) -> None:
@@ -69,6 +74,7 @@ def test_explicit_missing_xsl_is_reported(tmp_path: Path) -> None:
         find_xsl(tmp_path / "missing.xsl")
 
 
+@pytest.mark.native_xsl
 def test_native_xsl_when_available(tmp_path: Path) -> None:
     try:
         xsl = find_xsl()
@@ -83,3 +89,226 @@ def test_native_xsl_when_available(tmp_path: Path) -> None:
     with zipfile.ZipFile(output) as archive:
         root = etree.fromstring(archive.read("word/document.xml"))
     assert root.xpath(".//m:oMath", namespaces={"m": M_NS})
+
+
+def test_scan_validates_input_and_corrupt_archives(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match=".docx"):
+        scan_docx(tmp_path / "notes.txt", tmp_path / "report.json")
+    with pytest.raises(FileNotFoundError, match="not found"):
+        scan_docx(tmp_path / "missing.docx", tmp_path / "report.json")
+    corrupt = tmp_path / "corrupt.docx"
+    corrupt.write_bytes(b"not a zip archive")
+    with pytest.raises(zipfile.BadZipFile):
+        scan_docx(corrupt, tmp_path / "report.json")
+
+
+def test_scan_records_empty_pict_and_unparseable_formula(tmp_path: Path) -> None:
+    document = document_with_body(
+        """
+        <w:p><w:r><w:t>   </w:t></w:r></w:p>
+        <w:p><w:r><w:pict/></w:r><w:r><w:t>x = 1</w:t></w:r></w:p>
+        <w:p><w:r><w:t>x = +</w:t></w:r></w:p>
+        """
+    )
+    source = make_docx(tmp_path / "source.docx", document_xml=document)
+    report = scan_docx(source, tmp_path / "report.json")
+    assert report["summary"]["drawing_paragraphs"] == 1
+    assert report["candidates"][0]["parse_status"] == "review"
+    assert report["candidates"][0]["selected"] is False
+    assert report["candidates"][0]["parse_error"]
+
+
+def test_apply_preserves_mixed_text_across_runs(tmp_path: Path) -> None:
+    document = document_with_body(
+        """
+        <w:p>
+          <w:r><w:t xml:space="preserve">Before </w:t></w:r>
+          <w:r><w:rPr><w:b/></w:rPr><w:t>x^2</w:t></w:r>
+          <w:r><w:t xml:space="preserve"> = 4</w:t></w:r>
+          <w:r><w:t xml:space="preserve"> after</w:t></w:r>
+        </w:p>
+        """
+    )
+    source = make_docx(tmp_path / "source.docx", document_xml=document)
+    review = tmp_path / "review.json"
+    review.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {
+                        "id": "mixed",
+                        "selected": True,
+                        "part": "word/document.xml",
+                        "paragraph_index": 0,
+                        "start": 7,
+                        "end": 14,
+                        "source": "x^2 = 4",
+                        "linear": "x^2 = 4",
+                        "display": False,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "output.docx"
+    result = apply_docx(
+        source,
+        review,
+        output,
+        tmp_path / "result.json",
+        make_fake_xsl(tmp_path / "fake.xsl"),
+    )
+    assert result["converted_count"] == 1
+    with zipfile.ZipFile(output) as archive:
+        root = etree.fromstring(archive.read("word/document.xml"))
+    paragraph = root.xpath(".//w:p", namespaces=NS)[0]
+    assert paragraph_text(paragraph) == "Before  after"
+    assert paragraph.xpath(".//m:oMath", namespaces=NS)
+
+
+def test_apply_preserves_single_run_suffix_formatting(tmp_path: Path) -> None:
+    document = document_with_body(
+        "<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Before x = 1 after</w:t></w:r></w:p>"
+    )
+    source = make_docx(tmp_path / "source.docx", document_xml=document)
+    review = tmp_path / "review.json"
+    review.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {
+                        "id": "styled",
+                        "selected": True,
+                        "part": "word/document.xml",
+                        "paragraph_index": 0,
+                        "start": 7,
+                        "end": 12,
+                        "source": "x = 1",
+                        "display": False,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "output.docx"
+    apply_docx(
+        source,
+        review,
+        output,
+        tmp_path / "result.json",
+        make_fake_xsl(tmp_path / "fake.xsl"),
+    )
+    with zipfile.ZipFile(output) as archive:
+        root = etree.fromstring(archive.read("word/document.xml"))
+    suffix = root.xpath(".//w:r[w:t=' after']", namespaces=NS)
+    assert suffix and suffix[0].xpath("boolean(./w:rPr/w:b)", namespaces=NS)
+
+
+def test_apply_reports_stale_and_invalid_review_locations(tmp_path: Path) -> None:
+    source = make_docx(tmp_path / "source.docx")
+    review = tmp_path / "review.json"
+    candidates = [
+        {
+            "id": "missing-part",
+            "selected": True,
+            "part": "word/missing.xml",
+            "paragraph_index": 0,
+            "start": 0,
+            "end": 1,
+            "source": "x",
+        },
+        {
+            "id": "missing-paragraph",
+            "selected": True,
+            "part": "word/header1.xml",
+            "paragraph_index": 99,
+            "start": 0,
+            "end": 1,
+            "source": "x",
+        },
+        {
+            "id": "stale",
+            "selected": True,
+            "part": "word/footer1.xml",
+            "paragraph_index": 0,
+            "start": 0,
+            "end": 5,
+            "source": "wrong",
+        },
+    ]
+    review.write_text(json.dumps({"candidates": candidates}), encoding="utf-8")
+    result = apply_docx(
+        source,
+        review,
+        tmp_path / "output.docx",
+        tmp_path / "result.json",
+        make_fake_xsl(tmp_path / "fake.xsl"),
+    )
+    assert result["converted_count"] == 0
+    assert result["skipped_count"] == 3
+    errors = {item["id"]: item["error"] for item in result["skipped"]}
+    assert "part not found" in errors["missing-part"]
+    assert "index out of range" in errors["missing-paragraph"]
+    assert "no longer matches" in errors["stale"]
+
+
+def test_apply_rejects_invalid_extensions_and_nested_hyperlink(tmp_path: Path) -> None:
+    source = make_docx(tmp_path / "source.docx")
+    review = tmp_path / "review.json"
+    review.write_text('{"candidates": []}', encoding="utf-8")
+    xsl = make_fake_xsl(tmp_path / "fake.xsl")
+    with pytest.raises(ValueError, match="must be .docx"):
+        apply_docx(source, review, tmp_path / "output.txt", tmp_path / "result.json", xsl)
+
+    nested_document = document_with_body(
+        "<w:p><w:hyperlink><w:r><w:t>x = 1</w:t></w:r></w:hyperlink></w:p>"
+    )
+    nested = make_docx(tmp_path / "nested.docx", document_xml=nested_document)
+    nested_review = tmp_path / "nested.json"
+    nested_review.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {
+                        "id": "nested",
+                        "selected": True,
+                        "part": "word/document.xml",
+                        "paragraph_index": 0,
+                        "start": 0,
+                        "end": 5,
+                        "source": "x = 1",
+                        "display": False,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = apply_docx(
+        nested,
+        nested_review,
+        tmp_path / "nested-output.docx",
+        tmp_path / "nested-result.json",
+        xsl,
+    )
+    assert result["skipped_count"] == 1
+    assert "hyperlink" in result["skipped"][0]["error"]
+
+
+def test_unselected_candidates_leave_document_unchanged(tmp_path: Path) -> None:
+    source = make_docx(tmp_path / "source.docx")
+    review = tmp_path / "review.json"
+    scanned = scan_docx(source, review)
+    for candidate in scanned["candidates"]:
+        candidate["selected"] = False
+    review.write_text(json.dumps(scanned), encoding="utf-8")
+    result = apply_docx(
+        source,
+        review,
+        tmp_path / "output.docx",
+        tmp_path / "result.json",
+        make_fake_xsl(tmp_path / "fake.xsl"),
+    )
+    assert result["converted_count"] == result["skipped_count"] == 0

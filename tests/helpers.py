@@ -68,14 +68,20 @@ FAKE_XSL = """<?xml version="1.0" encoding="UTF-8"?>
 </xsl:stylesheet>"""
 
 
-def make_docx(path: Path) -> Path:
+def make_docx(
+    path: Path,
+    *,
+    document_xml: str = DOCUMENT_XML,
+    header_xml: str = HEADER_XML,
+    footer_xml: str = FOOTER_XML,
+) -> Path:
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("[Content_Types].xml", CONTENT_TYPES)
         archive.writestr("_rels/.rels", ROOT_RELS)
-        archive.writestr("word/document.xml", DOCUMENT_XML)
+        archive.writestr("word/document.xml", document_xml)
         archive.writestr("word/_rels/document.xml.rels", DOCUMENT_RELS)
-        archive.writestr("word/header1.xml", HEADER_XML)
-        archive.writestr("word/footer1.xml", FOOTER_XML)
+        archive.writestr("word/header1.xml", header_xml)
+        archive.writestr("word/footer1.xml", footer_xml)
     return path
 
 
