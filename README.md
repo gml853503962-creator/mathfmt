@@ -10,6 +10,46 @@ mathematical operators — suitable for textbooks, exams, and technical reports.
 
 ---
 
+## Quick Start · 快速开始
+
+**Who is this for?** Anyone who writes math-heavy Word documents — teachers preparing
+exams, students writing lab reports, engineers drafting technical specs. If you type
+formulas like `x^2` or `sqrt(a/b)` in Word and want them rendered as proper equations,
+MathFmt is for you.
+
+**适合谁用？** 需要在 Word 里写数学公式的人——老师出试卷、学生写实验报告、工程师写技术文档。如果你在 Word 里输入 `x^2` 或 `sqrt(a/b)` 这样的文本公式，想让它们变成原生公式，MathFmt 就是你的工具。
+
+### Install · 安装
+
+```bash
+pip install mathfmt
+```
+
+Requirements: Python ≥ 3.10. The only runtime dependency is `lxml`.
+
+### Check your environment · 检查环境
+
+```bash
+mathfmt doctor
+```
+
+Prints Python version, backend availability, and platform info — useful before filing a bug report.
+
+### Convert a document · 转换文档
+
+```bash
+# One-step conservative conversion (high-confidence formulas only)
+mathfmt convert input.docx -o output.docx
+
+# Scan first, review candidates, then apply (recommended for production)
+mathfmt scan input.docx --report candidates.json
+mathfmt apply input.docx --review candidates.json --output output.docx
+```
+
+For detailed workflow, see [docs/workflow.md](docs/workflow.md).
+
+---
+
 ## Status
 
 **Beta (v0.2.2).** Cross-platform OMML, confidence scoring, expanded formula support, self-update, and bug fixes.
@@ -91,6 +131,8 @@ pip install --upgrade mathfmt
 
 - [公式语法参考](docs/formula-syntax.md) — 完整预处理规则、语法、MathML 映射和限制
 - [工作流指南](docs/workflow.md) — 安装、审核流程、错误处理、CI 使用
+- [示例](examples/README.md) — 从零开始的测试文档准备和转换教程
+- [路线图](ROADMAP.md) — 版本规划与功能展望
 
 ### 维护
 
@@ -175,6 +217,8 @@ pip install --upgrade mathfmt
 
 - [Formula Syntax Reference](docs/formula-syntax.md) — every preprocessing rule, the full grammar, MathML output mapping, and known limitations
 - [Workflow Guide](docs/workflow.md) — step-by-step install, review flow, troubleshooting, CI usage
+- [Examples](examples/README.md) — walkthrough from a blank test document to formatted output
+- [Roadmap](ROADMAP.md) — planned features and version timeline
 
 ### Maintenance
 

@@ -18,6 +18,13 @@ What would you like MathFmt to do?
 
 Any workarounds or alternative approaches you've tried.
 
-**Additional context**
+**Example formulas**
 
-Example documents or formula snippets that illustrate the need.
+Concrete formula examples that illustrate the need — plain-text input and expected rendered output.
+
+**Environment**
+
+- OS: [e.g. Windows 11, macOS 14, Ubuntu 24.04]
+- Python: [e.g. 3.12.0]
+- MathFmt: [e.g. 0.2.2]
+- Office: [yes / no, and version]
