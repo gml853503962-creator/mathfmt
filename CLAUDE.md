@@ -21,7 +21,7 @@ MathFmt is a Python CLI tool & library that converts plain-text math formulas (e
 ```
 MathFmt/
 ├── src/mathfmt/           # Package source (8 files)
-│   ├── __init__.py        # Public API exports (8 symbols)
+│   ├── __init__.py        # Public API exports (9 symbols)
 │   ├── _version.py        # Single version source: "0.2.2"
 │   ├── __main__.py        # `python -m mathfmt` entry point
 │   ├── cli.py             # argparse CLI: 6 subcommands
@@ -44,7 +44,7 @@ MathFmt/
 │   └── README.md          # New-user walkthrough: test doc → scan → apply
 ├── ROADMAP.md             # Phased version plan (v0.2.x → v1.0.0)
 ├── .github/workflows/
-│   ├── ci.yml             # CI: 3 OS × 4 Python, pytest, ruff, coverage, packaging
+│   ├── ci.yml             # CI: 8 test matrix jobs + 1 package smoke-test job
 │   └── publish.yml        # CD: tag → PyPI + GitHub Release
 ├── .claude/
 │   ├── memory.md          # Project lessons learned (5 items)
@@ -87,7 +87,7 @@ Six subcommands via `argparse`:
 | `mathfmt convert` | One-step conservative conversion (scan + apply high-confidence only) |
 | `mathfmt validate` | Multi-layer offline validation |
 | `mathfmt doctor` | Environment diagnostics |
-| `mathfmt update` | Check for newer version on PyPI |
+| `mathfmt update` | Check for newer version on GitHub |
 
 ### `validate.py` — Validator
 Four validation layers:
@@ -147,10 +147,10 @@ mathfmt convert input.docx -o output.docx
 
 ## Two OMML Backends
 
-1. **Built-in Python** (`omml.py`) — default, cross-platform, no dependencies beyond lxml
-2. **Microsoft Office XSL** — auto-detected on Windows via `find_xsl()`, uses `MML2OMML.XSL`
+1. **Built-in Python** (`omml.py`) — the default, cross-platform, no dependencies beyond lxml. Always available.
+2. **Microsoft Office XSL** — optional, detected via `find_xsl()`. Used only when `--xsl` is explicitly passed (or the caller provides a `transform`).
 
-Backend selection is automatic; `mathml_to_omml()` tries Office XSL first, falls back to Python.
+When available, the Office XSL backend generally produces output closer to Word's native equation editor. The Python backend is the safe default and works everywhere.
 
 ---
 
