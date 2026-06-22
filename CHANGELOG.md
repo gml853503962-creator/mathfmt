@@ -2,6 +2,41 @@
 
 All notable changes to MathFmt are documented here.
 
+## [0.2.3] - 2026-06-22
+
+### Fixed
+- **Parser:** `...` (ellipsis) now tokenized as `…` — `1+2+...+n` parses without error.
+- **Parser:** `n!` factorial added as postfix operator.
+- **Parser:** `int(...)` / `sum(...)` / `prod(...)` now produce proper n-ary MathML
+  (`munderover` for sum/prod, `msubsup` for integrals) with bounds and body, instead
+  of being split as implicit multiplication.
+- **Parser:** multi-letter identifiers (e.g. `x_bar`) now parse correctly; bar is no
+  longer split into `b * a * r`.
+- **Scanner:** single-letter `C` removed from French text-boundary rule, so
+  `sin(x) + C` is no longer truncated.
+- **Scanner:** `1(t)` and `Γ(t)` (unit step) now detected by an exact pattern before
+  the general heuristic scan.
+- **Validator:** OMML nesting-depth limit raised from 8 to 32; only math-structure
+  elements (`f`, `rad`, `sSup`, `sSub`, …) count toward depth, not container/run
+  wrappers. Depth exceeding the limit is now a warning, not a hard validation error.
+
+### Documentation
+- Bilingual Quick Start section added to README (`pip install`, `doctor`, `convert`).
+- `examples/README.md` — step-by-step walkthrough for new users.
+- `ROADMAP.md` — phased version plan from v0.2.x through v1.0.0.
+- `CLAUDE.md` — comprehensive project reference for Claude Code (fixed several
+  factual inaccuracies: API count, function signatures, CI matrix shape, backend
+  default, `--output` flag).
+- `tests/acceptance/` — 5 real-world test DOCX files with generator script.
+- `convert` command examples now use `--output` instead of the non-existent `-o`.
+- `apply` command examples now include the required `--report` flag.
+- `doctor` output description and candidate review instructions corrected.
+
+### Tests
+- 5 new regression tests covering ellipsis, factorial, indefinite integral `+C`,
+  step function detection, and deeply nested standard-deviation formula.
+- Acceptance test pipeline: scan → convert → validate on 5 real-world DOCX files.
+
 ## [0.2.2] - 2026-06-21
 
 ### Fixed
