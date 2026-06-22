@@ -99,10 +99,10 @@ def test_acceptance_key_formulas_parse(acceptance_docs: dict[str, Path], tmp_pat
 
     # The 5 regression formulas must parse OK
     targets = [
-        "1 + 2 + ... + n = n(n+1)/2",          # ellipsis
-        "prod(i=1, n) i = n!",                  # factorial
-        "int(cos(x)) dx = sin(x) + C",          # C retention
-        "1(t)",                                  # step function
+        "1 + 2 + ... + n = n(n+1)/2",  # ellipsis
+        "prod(i=1, n) i = n!",  # factorial
+        "int(cos(x)) dx = sin(x) + C",  # C retention
+        "1(t)",  # step function
         "s = sqrt((1/(n-1)) sum(i=1, n) (x_i - x_bar)^2)",  # nested standard deviation
     ]
     for target in targets:
