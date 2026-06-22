@@ -103,17 +103,18 @@ def test_superscript_missing_e_is_flagged(tmp_path: Path) -> None:
 
 
 def test_deep_nesting_is_flagged(tmp_path: Path) -> None:
-    # Build 10 nested mrow elements
-    inner = "<m:r><m:t>x</m:t></m:r>"
-    wrapped = inner
-    for _ in range(10):
-        wrapped = f"<m:mrow>{wrapped}</m:mrow>"
+    # Build 35 nested m:f (fraction) elements — each m:f is a math-structure layer.
+    # m:num / m:den are containers, not counted toward depth.
+    inner = "<m:num><m:r><m:t>1</m:t></m:r></m:num><m:den><m:r><m:t>2</m:t></m:r></m:den>"
+    wrapped = f"<m:f>{inner}</m:f>"
+    for _ in range(34):
+        wrapped = f"<m:f><m:num><m:r><m:t>1</m:t></m:r></m:num><m:den>{wrapped}</m:den></m:f>"
     source = make_docx_with_omml(
         tmp_path / "deep.docx",
         content=f'<w:p><m:oMath xmlns:m="{M_NS}">{wrapped}</m:oMath></w:p>',
     )
     report = validate_docx(source)
-    assert any("depth" in e["error"].lower() for e in report["omml"]["structural_errors"])
+    assert any("depth" in w["warning"].lower() for w in report["omml"]["structural_warnings"])
 
 
 def test_empty_text_run_is_counted(tmp_path: Path) -> None:

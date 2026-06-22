@@ -20,7 +20,13 @@ from .core import (
 )
 from .omml import mathml_to_omml_py
 
-MAX_NESTING_DEPTH = 8
+MAX_NESTING_DEPTH = 32
+
+# Math-structure element local-names — only these count toward nesting depth.
+_MATH_STRUCTURE = frozenset(
+    {"f", "rad", "sSup", "sSub", "sSubSup", "groupChr", "lim", "nary", "eqArr", "box", "borderBox"}
+)
+
 F_NS_MAP = {"m": M_NS}
 
 
@@ -54,9 +60,13 @@ def _nesting_depth(
     elem: etree._Element,
     depth: int = 0,
 ) -> int:
+    """Return maximum math-structure nesting depth (ignores container/run wrappers)."""
+    local = etree.QName(elem).localname
+    structural = local in _MATH_STRUCTURE
+    current = depth + 1 if structural else depth
     if not len(elem):
-        return depth
-    return max(_nesting_depth(child, depth + 1) for child in elem)
+        return current
+    return max(_nesting_depth(child, current) for child in elem)
 
 
 def _validate_omml_structure(
@@ -65,6 +75,7 @@ def _validate_omml_structure(
     result: dict[str, object] = {
         "equation_count": 0,
         "display_count": 0,
+        "structural_warnings": [],
         "structural_errors": [],
         "empty_runs": 0,
         "nesting_depth": 0,
@@ -93,8 +104,8 @@ def _validate_omml_structure(
             if depth > result["nesting_depth"]:
                 result["nesting_depth"] = depth
             if depth > MAX_NESTING_DEPTH:
-                result["structural_errors"].append(
-                    {"part": name, "error": f"OMML nesting depth {depth} exceeds limit {MAX_NESTING_DEPTH}"}
+                result["structural_warnings"].append(
+                    {"part": name, "warning": f"OMML nesting depth {depth} exceeds limit {MAX_NESTING_DEPTH}"}
                 )
 
             # Empty text runs

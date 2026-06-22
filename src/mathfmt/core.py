@@ -103,9 +103,10 @@ TOKEN_RE = re.compile(
     r"(?P<MATRIX_OPEN>\[\[)|"
     r"(?P<MATRIX_CLOSE>\]\])|"
     r"(?P<NUMBER>\d+(?:[\.,]\d+)?)|"
-    r"(?P<IDENT>sqrt|lim|exp|sin|cos|tan|Delta|pi|inf|e[pv]|pPAIR|DERV\d+|[A-Za-z](?:\d+)?|[ΔπΓ∞∫∑∏])|"
-    r"(?P<OP><=|>=|!=|~=|->|=>|\+/-|[+\-*/^=<>±≠≤≥≈→⇒·×÷_])|"
-    r"(?P<LPAREN>[\(\[\{])|(?P<RPAREN>[\)\]\}])|(?P<COMMA>,)|(?P<SEMI>;)"
+    r"(?P<IDENT>sqrt|lim|exp|sin|cos|tan|Delta|pi|inf|e[pv]|pPAIR|DERV\d+|[A-Za-z][A-Za-z0-9]*|[ΔπΓ∞∫∑∏])|"
+    r"(?P<OP><=|>=|!=|<<|>>|~=|->|=>|\+/-|[+\-*/^=<>!±≠≤≥≈→⇒·×÷_])|"
+    r"(?P<LPAREN>[\(\[\{])|(?P<RPAREN>[\)\]\}])|(?P<COMMA>,)|(?P<SEMI>;)|"
+    r"(?P<ELLIPSIS>…)"
     r")"
 )
 
@@ -152,7 +153,7 @@ def preprocess_formula(source: str) -> tuple[str, dict[str, tuple[int, str, str]
     text = re.sub(r"\bp1\s*,\s*2\b", "pPAIR", text)
     text = text.replace("√", "sqrt").replace("+/-", "±")
     text = text.replace("!=", "≠").replace("<=", "≤").replace(">=", "≥")
-    text = text.replace("->", "→").replace("=>", "⇒")
+    text = text.replace("->", "→").replace("=>", "⇒").replace("...", "…")
     text = text.replace("×", "*").replace("·", "*").replace("÷", "/")
     text = re.sub(r"(?:Γ|1)\(t\)", "u(t)", text)
     text = re.sub(r"\bDelta\b", "Δ", text)
@@ -282,6 +283,9 @@ class Parser:
         if self.current.kind == "OP" and self.current.value == "^":
             self.advance()
             node = Node("power", children=(node, self.parse_power()))
+        if self.current.kind == "OP" and self.current.value == "!":
+            self.advance()
+            node = Node("factorial", children=(node,))
         return node
 
     def parse_subsup(self) -> Node:
@@ -322,6 +326,8 @@ class Parser:
             return self._parse_matrix()
         if token := self.accept("NUMBER"):
             return Node("number", token.value)
+        if token := self.accept("ELLIPSIS"):
+            return Node("identifier", "…")
         if self.current.kind == "LPAREN":
             return self.parse_group()
         if token := self.accept("IDENT"):
@@ -335,6 +341,12 @@ class Parser:
                 )
             if name in {"∫", "∏", "∑"}:
                 return self._parse_nary(name)
+            if name in {"int", "sum", "prod"}:
+                if self.current.kind == "LPAREN":
+                    bounds = self.parse_group()
+                    body = self.parse_add()
+                    return Node("nary", name, children=(bounds, body))
+                return Node("identifier", name)
             if self.current.kind == "LPAREN":
                 group = self.parse_group()
                 if name in {"sqrt", "√"}:
@@ -494,8 +506,9 @@ def node_to_mathml(node: Node) -> etree._Element:
             ss.append(node_to_mathml(child))
         return ss
     if node.kind == "nary":
-        nary_elem = mml("mo", node.value or "∫")
-        return nary_elem
+        return _nary_mathml(node)
+    if node.kind == "factorial":
+        return mrow(node_to_mathml(node.children[0]), mml("mo", "!"))
     if node.kind == "piecewise":
         row = mml("mrow")
         for i, branch in enumerate(node.children):
@@ -504,6 +517,55 @@ def node_to_mathml(node: Node) -> etree._Element:
             row.append(node_to_mathml(branch))
         return fenced(row, "{}")
     raise FormulaError(f"Unsupported AST node: {node.kind}")
+
+
+def _nary_mathml(node: Node) -> etree._Element:
+    """Generate MathML for n-ary operators: int/sum/prod."""
+    name = node.value or "int"
+    op_map = {"int": "∫", "sum": "∑", "prod": "∏", "∫": "∫", "∑": "∑", "∏": "∏"}
+    op_char = op_map.get(name, "∫")
+
+    # Backward compatibility: bare Unicode nary (∫ / ∑ / ∏) without children
+    if not node.children:
+        return mml("mo", op_char)
+
+    bounds_node = node.children[0]
+    body = node_to_mathml(node.children[1])
+
+    # Unwrap group and sequence wrappers to reach the actual bound items
+    inner = bounds_node
+    while inner.kind == "group" and inner.children:
+        inner = inner.children[0]
+    bound_items = inner.children if inner.kind == "sequence" else (inner,)
+    has_limits = len(bound_items) >= 2
+
+    if name == "sum":
+        op_mathml = mml("munderover") if has_limits else mml("mo", op_char)
+        if has_limits:
+            op_mathml.append(mml("mo", op_char))
+            op_mathml.append(node_to_mathml(bound_items[0]))
+            op_mathml.append(node_to_mathml(bound_items[1]))
+        return mrow(op_mathml, body)
+
+    if name == "prod":
+        op_mathml = mml("munderover") if has_limits else mml("mo", op_char)
+        if has_limits:
+            op_mathml.append(mml("mo", op_char))
+            op_mathml.append(node_to_mathml(bound_items[0]))
+            op_mathml.append(node_to_mathml(bound_items[1]))
+        return mrow(op_mathml, body)
+
+    if name == "int":
+        if has_limits:
+            integral = mml("msubsup")
+            integral.append(mml("mo", op_char))
+            integral.append(node_to_mathml(bound_items[0]))
+            integral.append(node_to_mathml(bound_items[1]))
+            return mrow(integral, body)
+        integrand = node_to_mathml(bound_items[0])
+        return mrow(mml("mo", op_char), integrand, body)
+
+    return mrow(mml("mo", op_char), body)
 
 
 def formula_to_mathml(source: str) -> etree._Element:
@@ -581,10 +643,23 @@ def math_score(source: str) -> int:
     return score
 
 
+_STEP_RE = re.compile(r"(?<!\w)(?:1|Γ)\(t\)(?!\w)")
+
+
 def candidate_runs(text: str) -> list[tuple[int, int, str]]:
     candidates: list[tuple[int, int, str]] = []
+
+    # Detect step function 1(t) / Γ(t) with exact pattern before general scan
+    step_spans: set[tuple[int, int]] = set()
+    for match in _STEP_RE.finditer(text):
+        step_spans.add((match.start(), match.end()))
+        candidates.append((match.start(), match.end(), match.group()))
+
     index = 0
     while index < len(text):
+        # Skip spans already claimed by step-function detector
+        while any(s <= index < e for s, e in step_spans):
+            index = next(e for s, e in step_spans if s <= index < e)
         if text[index] not in MATH_CHARS:
             index += 1
             continue
@@ -601,7 +676,7 @@ def candidate_runs(text: str) -> list[tuple[int, int, str]]:
         if not source or not FORMULA_ANCHOR_RE.search(source) or math_score(source) < 4:
             continue
         source = re.split(r"\.\s+(?=[A-Za-z])", source, maxsplit=1)[0]
-        source = re.split(r",?\s+(?:avec|si|et|Elle|C|La|Pour)\b", source, maxsplit=1, flags=re.IGNORECASE)[0]
+        source = re.split(r",?\s+(?:avec|si|et|Elle|La|Pour)\b", source, maxsplit=1, flags=re.IGNORECASE)[0]
         source = re.sub(
             r"^.*\b(?:est|sont|vaut|discriminant|vers|equals?|is)\s+",
             "",

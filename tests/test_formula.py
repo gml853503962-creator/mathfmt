@@ -110,3 +110,52 @@ def test_cross_paragraph_formula_detection() -> None:
 
     candidates = candidate_runs("x = 1\n+ 2")
     assert len(candidates) > 0
+
+
+# ---------------------------------------------------------------------------
+# v0.2.3 regression tests — ellipsis, factorial, n-ary, step function, nested
+# ---------------------------------------------------------------------------
+
+
+def test_ellipsis_parses() -> None:
+    """1 + 2 + ... + n = n(n+1)/2  must parse without error."""
+    root = formula_to_mathml("1 + 2 + ... + n = n(n+1)/2")
+    tags = {etree.QName(e).localname for e in root.iter()}
+    assert "mi" in tags  # ellipsis treated as identifier
+
+
+def test_factorial_parses() -> None:
+    """prod(i=1, n) i = n!  must parse without error and include factorial."""
+    root = formula_to_mathml("prod(i=1, n) i = n!")
+    tags = {etree.QName(e).localname for e in root.iter()}
+    assert "munderover" in tags  # prod generates munderover
+
+    # Verify ! appears as operator text
+    excl = [e for e in root.xpath(".//*[local-name()='mo']") if e.text == "!"]
+    assert len(excl) == 1
+
+
+def test_indefinite_integral_retains_C() -> None:
+    """int(cos(x)) dx = sin(x) + C  must not drop C."""
+    root = formula_to_mathml("int(cos(x)) dx = sin(x) + C")
+    texts = [e.text or "" for e in root.iter()]
+    all_text = "".join(texts)
+    assert "C" in all_text
+
+
+def test_step_function_detected_in_scanner() -> None:
+    """1(t) must be detected as a candidate."""
+    from mathfmt.core import candidate_runs
+
+    spans = candidate_runs("The input is 1(t) for t > 0.")
+    sources = [s for _, _, s in spans]
+    assert any("1(t)" in s or "u(t)" in s for s in sources)
+
+
+def test_standard_deviation_nested_parses() -> None:
+    """sqrt((1/(n-1)) sum(i=1, n) (x_i - x_bar)^2) must parse."""
+    root = formula_to_mathml("s = sqrt((1/(n-1)) sum(i=1, n) (x_i - x_bar)^2)")
+    tags = {etree.QName(e).localname for e in root.iter()}
+    assert "msqrt" in tags
+    assert "munderover" in tags  # sum generates munderover
+    assert "msub" in tags  # x_i and x_bar generate subscripts
