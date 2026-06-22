@@ -10,6 +10,7 @@ but timelines are best-effort — this is a single-maintainer project.
 **Focus:** Make the project easier to discover, install, and trust.
 
 - [x] v0.2.2 — CI/Ruff fixes, cache crash fix, exit code correction
+- [x] v0.2.3 — Parser fixes (ellipsis, factorial, n-ary, 1(t), x_bar, C boundary); depth validation; docs & examples
 - [x] Bilingual Quick Start in README (`pip install`, `doctor`, basic conversion)
 - [x] `examples/` directory with a walkthrough for new users
 - [x] `ROADMAP.md` (this file)

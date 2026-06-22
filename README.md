@@ -52,7 +52,7 @@ For detailed workflow, see [docs/workflow.md](docs/workflow.md).
 
 ## Status
 
-**Beta (v0.2.2).** Cross-platform OMML, confidence scoring, expanded formula support, self-update, and bug fixes.
+**Beta (v0.2.3).** Cross-platform OMML, confidence scoring, expanded formula support, self-update, parser fixes, and docs overhaul.
 
 ---
 
@@ -124,6 +124,7 @@ pip install --upgrade mathfmt
 | **0.2.0** (2026-06-21) | 跨平台内置 OMML；置信度评分；独立验证；积分/求和/矩阵/向量/分段 |
 | **0.2.1** (2026-06-21) | GitHub 自更新；缓存隔离；SemVer 预发布支持 |
 | **0.2.2** (2026-06-21) | CI/Ruff 修复；缓存崩溃修复；退出码修正；验证报告版本 |
+| **0.2.3** (2026-06-22) | Parser 修复（省略号/阶乘/大型算子/边界/深度）；文档与示例完善 |
 | **0.3.0** (2026-Q4) | 转换报告；dry-run；失败公式提示；更好的错误信息 |
 | **1.0.0** (2027) | 稳定 API；长期支持 |
 
@@ -210,6 +211,7 @@ pip install --upgrade mathfmt
 | **0.2.0** (2026-06-21) | Cross-platform built-in OMML; confidence scoring; validate; integrals, sums, matrices |
 | **0.2.1** (2026-06-21) | GitHub self-update; cache isolation; SemVer pre-release support |
 | **0.2.2** (2026-06-21) | CI/Ruff fixes; cache crash fix; exit code correction; validate version |
+| **0.2.3** (2026-06-22) | Parser fixes (ellipsis, factorial, n-ary, 1(t), x_bar, boundary); depth validation; docs & examples |
 | **0.3.0** (2026-Q4) | Conversion report; dry-run; failed-formula warnings; better errors |
 | **1.0.0** (2027) | Stable API; long-term support |
 
