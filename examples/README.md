@@ -69,7 +69,7 @@ Open `formatted.docx` in Word — your plain-text formulas are now native OMML e
 If you trust the scanner's high-confidence results:
 
 ```bash
-mathfmt convert test.docx -o formatted.docx
+mathfmt convert test.docx --output formatted.docx
 ```
 
 This runs scan + apply in a single step, auto-selecting only `high` confidence candidates.

@@ -122,7 +122,7 @@ python -m build
 
 # Run CLI locally (editable install)
 mathfmt doctor
-mathfmt convert input.docx -o output.docx
+mathfmt convert input.docx --output output.docx
 ```
 
 **Pytest notes:**

@@ -39,7 +39,7 @@ Prints Python version, backend availability, and platform info — useful before
 
 ```bash
 # One-step conservative conversion (high-confidence formulas only)
-mathfmt convert input.docx -o output.docx
+mathfmt convert input.docx --output output.docx
 
 # Scan first, review candidates, then apply (recommended for production)
 mathfmt scan input.docx --report candidates.json

@@ -1,0 +1,5 @@
+# Generated output files
+doc*_output.docx
+doc*_scan.json
+doc*_result.json
+doc*_val.json
