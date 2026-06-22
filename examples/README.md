@@ -39,7 +39,7 @@ start here.
 mathfmt doctor
 ```
 
-Make sure you see a green "OK" for at least one OMML backend.
+Make sure you see `Ready: yes` and at least one OMML backend listed.
 
 ### 2. Scan for formulas
 
@@ -52,13 +52,14 @@ This produces `candidates.json` — a list of detected formula spans with confid
 ### 3. Review candidates (optional but recommended)
 
 Open `candidates.json` in a text editor and:
-- Remove any false positives (non-math text flagged as formulas).
-- Keep or adjust confidence thresholds as needed.
+- Set `"selected"` to `false` for any false positives (non-math text flagged as formulas).
+- Set `"selected"` to `true` for any formulas you want converted that were not auto-selected.
+- Each candidate has a `confidence` field (`high` / `medium` / `low`) to guide your review.
 
 ### 4. Apply conversion
 
 ```bash
-mathfmt apply test.docx --review candidates.json --output formatted.docx
+mathfmt apply test.docx --review candidates.json --output formatted.docx --report result.json
 ```
 
 Open `formatted.docx` in Word — your plain-text formulas are now native OMML equations.
@@ -71,7 +72,7 @@ If you trust the scanner's high-confidence results:
 mathfmt convert test.docx -o formatted.docx
 ```
 
-This runs scan + apply in a single step, using only candidates with confidence ≥ 0.5.
+This runs scan + apply in a single step, auto-selecting only `high` confidence candidates.
 
 ## Using the Test Suite Documents · 使用测试套件文档
 

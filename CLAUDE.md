@@ -20,9 +20,10 @@ MathFmt is a Python CLI tool & library that converts plain-text math formulas (e
 
 ```
 MathFmt/
-├── src/mathfmt/           # Package source (5 production modules)
+├── src/mathfmt/           # Package source (8 files)
 │   ├── __init__.py        # Public API exports (8 symbols)
 │   ├── _version.py        # Single version source: "0.2.2"
+│   ├── __main__.py        # `python -m mathfmt` entry point
 │   ├── cli.py             # argparse CLI: 6 subcommands
 │   ├── core.py            # Core engine (~950 lines): scan, parse, apply
 │   ├── omml.py            # Pure-Python MathML→OMML converter
@@ -67,11 +68,11 @@ The heart of the project. Data flow:
 5. **DOCX injection** — finds text runs matching formula spans, replaces with OMML markup, handles table multi-line splitting
 
 Key functions exported via `__init__.py`:
-- `scan_docx(docx_path)` → JSON-serializable candidate list with confidence scores
-- `apply_docx(docx_path, candidates, output_path)` → writes new DOCX with OMML
-- `formula_to_mathml(text)` → parse single formula → MathML string
-- `mathml_to_omml(mathml)` → convert MathML → OMML (auto-selects backend)
-- `find_xsl()` → locate Office MML2OMML.XSL if available
+- `scan_docx(input_path, report_path)` → writes JSON report, returns stats dict
+- `apply_docx(input_path, review_path, output_path, result_path, xsl_path=None)` → writes formatted DOCX + result JSON
+- `formula_to_mathml(source)` → parse single formula → MathML element
+- `mathml_to_omml(math, transform=None)` → convert MathML → OMML (auto-selects backend)
+- `find_xsl(explicit=None)` → locate Office MML2OMML.XSL if available
 
 ### `omml.py` — Built-in MathML→OMML converter
 Pure Python, no Office required. Cross-platform default backend. Key function:
@@ -155,7 +156,7 @@ Backend selection is automatic; `mathml_to_omml()` tries Office XSL first, falls
 
 ## CI/CD
 
-- **CI** (`.github/workflows/ci.yml`): Triggers on push/PR to main. Matrix: Windows + Ubuntu + macOS × Python 3.10–3.13. Runs ruff → pytest → build check.
+- **CI** (`.github/workflows/ci.yml`): Triggers on push/PR to main. 8 jobs: Windows (3.10–3.13), Ubuntu (3.10, 3.13), macOS (3.10, 3.13). Runs ruff → pytest → build check → package smoke test.
 - **CD** (`.github/workflows/publish.yml`): Triggers on tag push `v*`. Builds → publishes to PyPI via Trusted Publishing → creates GitHub Release.
 
 ---

@@ -10,9 +10,9 @@ but timelines are best-effort — this is a single-maintainer project.
 **Focus:** Make the project easier to discover, install, and trust.
 
 - [x] v0.2.2 — CI/Ruff fixes, cache crash fix, exit code correction
-- [ ] Bilingual Quick Start in README (`pip install`, `doctor`, basic conversion)
-- [ ] `examples/` directory with a walkthrough for new users
-- [ ] `ROADMAP.md` (this file)
+- [x] Bilingual Quick Start in README (`pip install`, `doctor`, basic conversion)
+- [x] `examples/` directory with a walkthrough for new users
+- [x] `ROADMAP.md` (this file)
 - [ ] Improve `mathfmt doctor` output — show versions of key dependencies
 - [ ] Fix any crash-on-edge-input bugs reported by users
 - [ ] Expand test coverage for boundary cases (empty runs, malformed XML, Unicode edge cases)

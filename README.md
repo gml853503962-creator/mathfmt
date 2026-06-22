@@ -43,7 +43,7 @@ mathfmt convert input.docx -o output.docx
 
 # Scan first, review candidates, then apply (recommended for production)
 mathfmt scan input.docx --report candidates.json
-mathfmt apply input.docx --review candidates.json --output output.docx
+mathfmt apply input.docx --review candidates.json --output output.docx --report result.json
 ```
 
 For detailed workflow, see [docs/workflow.md](docs/workflow.md).
@@ -124,7 +124,7 @@ pip install --upgrade mathfmt
 | **0.2.0** (2026-06-21) | 跨平台内置 OMML；置信度评分；独立验证；积分/求和/矩阵/向量/分段 |
 | **0.2.1** (2026-06-21) | GitHub 自更新；缓存隔离；SemVer 预发布支持 |
 | **0.2.2** (2026-06-21) | CI/Ruff 修复；缓存崩溃修复；退出码修正；验证报告版本 |
-| **0.3.0** (2026-Q4) | 正式语法引擎；LaTeX 输入；性能优化 |
+| **0.3.0** (2026-Q4) | 转换报告；dry-run；失败公式提示；更好的错误信息 |
 | **1.0.0** (2027) | 稳定 API；长期支持 |
 
 ### 更多文档
@@ -210,7 +210,7 @@ pip install --upgrade mathfmt
 | **0.2.0** (2026-06-21) | Cross-platform built-in OMML; confidence scoring; validate; integrals, sums, matrices |
 | **0.2.1** (2026-06-21) | GitHub self-update; cache isolation; SemVer pre-release support |
 | **0.2.2** (2026-06-21) | CI/Ruff fixes; cache crash fix; exit code correction; validate version |
-| **0.3.0** (2026-Q4) | Formal grammar engine; LaTeX input; performance |
+| **0.3.0** (2026-Q4) | Conversion report; dry-run; failed-formula warnings; better errors |
 | **1.0.0** (2027) | Stable API; long-term support |
 
 ### Further Reading
