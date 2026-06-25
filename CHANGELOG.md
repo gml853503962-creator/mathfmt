@@ -2,7 +2,7 @@
 
 All notable changes to MathFmt are documented here.
 
-## [Unreleased]
+## [0.3.0] - 2026-06-25
 
 ### Added
 - v3 conversion/validation report metadata: `schema_version`, `report_type`, `command`,
