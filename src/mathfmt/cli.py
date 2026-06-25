@@ -62,8 +62,9 @@ def build_parser() -> argparse.ArgumentParser:
     apply = subparsers.add_parser("apply", help="apply a reviewed candidate report")
     apply.add_argument("input", type=Path)
     apply.add_argument("--review", type=Path, required=True)
-    apply.add_argument("--output", "--out", dest="output", type=Path, required=True)
+    apply.add_argument("--output", "--out", dest="output", type=Path)
     apply.add_argument("--report", type=Path, required=True)
+    apply.add_argument("--dry-run", action="store_true", help="preview changes without writing a DOCX")
     apply.add_argument(
         "--xsl", type=Path, help="path to MML2OMML.XSL (optional; built-in Python backend used otherwise)"
     )
@@ -141,6 +142,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Report: {args.report}")
             return 0
         if args.command == "apply":
+            if args.output is None and not args.dry_run:
+                raise ValueError("apply requires --output unless --dry-run is used")
+            output = args.output or default_output(args.input)
             if args.xsl is not None:
                 xsl_path = find_xsl(args.xsl)
             else:
@@ -151,13 +155,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = apply_docx(
                 args.input,
                 args.review,
-                args.output,
+                output,
                 args.report,
                 xsl_path,
+                dry_run=args.dry_run,
             )
             print(f"Converted: {result['converted_count']}")
             print(f"Skipped: {result['skipped_count']}")
-            print(f"Output: {args.output}")
+            if args.dry_run:
+                print(f"Output: {output} (dry-run, not written)")
+            else:
+                print(f"Output: {output}")
             print(f"Report: {args.report}")
             return 0 if result["skipped_count"] == 0 else 2
         if args.command == "convert":

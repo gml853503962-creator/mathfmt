@@ -80,6 +80,26 @@ def test_apply_writes_v3_conversion_report_schema(tmp_path: Path) -> None:
     assert {item["status"] for item in saved["formulas"]} == {"converted"}
 
 
+def test_apply_dry_run_writes_report_without_docx_output(tmp_path: Path) -> None:
+    source = make_docx(tmp_path / "source.docx")
+    original = source.read_bytes()
+    review = tmp_path / "review.json"
+    result_path = tmp_path / "result.json"
+    output = tmp_path / "output.docx"
+
+    scan_docx(source, review)
+    result = apply_docx(source, review, output, result_path, xsl_path=None, dry_run=True)
+    saved = json.loads(result_path.read_text(encoding="utf-8"))
+
+    assert source.read_bytes() == original
+    assert not output.exists()
+    assert result["converted_count"] > 0
+    assert saved["options"]["dry_run"] is True
+    assert saved["summary"]["dry_run"] is True
+    assert saved["summary"]["output_written"] is False
+    assert saved["summary"]["converted"] == saved["converted_count"]
+
+
 def test_refuses_to_overwrite_input(tmp_path: Path) -> None:
     source = make_docx(tmp_path / "source.docx")
     review = tmp_path / "review.json"

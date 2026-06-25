@@ -960,6 +960,7 @@ def _conversion_report(
     result_path: Path,
     xsl_path: Path | None,
     selected_count: int,
+    dry_run: bool,
 ) -> dict[str, object]:
     backend = "office-xsl" if xsl_path is not None else "python"
     return {
@@ -978,6 +979,7 @@ def _conversion_report(
         "options": {
             "backend": backend,
             "xsl": _path_value(xsl_path),
+            "dry_run": dry_run,
         },
         "summary": {
             "selected": selected_count,
@@ -985,6 +987,8 @@ def _conversion_report(
             "skipped": 0,
             "failed": 0,
             "warnings": 0,
+            "dry_run": dry_run,
+            "output_written": False,
         },
         "formulas": [],
         # Backwards-compatible v0.2.x fields:
@@ -1020,10 +1024,11 @@ def apply_docx(
     xsl_path: Path | None = None,
     *,
     command_name: str = "apply",
+    dry_run: bool = False,
 ) -> dict[str, object]:
     if input_path.suffix.lower() != ".docx" or output_path.suffix.lower() != ".docx":
         raise ValueError("Input and output must be .docx files")
-    if input_path.resolve() == output_path.resolve():
+    if not dry_run and input_path.resolve() == output_path.resolve():
         raise ValueError("Refusing to overwrite the input DOCX")
     review = json.loads(review_path.read_text(encoding="utf-8"))
     candidates = [c for c in review.get("candidates", []) if c.get("selected")]
@@ -1037,6 +1042,7 @@ def apply_docx(
         result_path=result_path,
         xsl_path=xsl_path,
         selected_count=len(candidates),
+        dry_run=dry_run,
     )
     converted = result["converted"]
     skipped = result["skipped"]
@@ -1105,15 +1111,18 @@ def apply_docx(
                 formulas.append(_formula_report_item(candidate, status="skipped", message=error))
         parts[part_name] = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = output_path.with_suffix(output_path.suffix + ".tmp")
-    try:
-        with zipfile.ZipFile(tmp_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-            for info in infos:
-                archive.writestr(info, parts[info.filename])
-        shutil.move(str(tmp_path), str(output_path))
-    finally:
-        tmp_path.unlink(missing_ok=True)
+    output_written = False
+    if not dry_run:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = output_path.with_suffix(output_path.suffix + ".tmp")
+        try:
+            with zipfile.ZipFile(tmp_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                for info in infos:
+                    archive.writestr(info, parts[info.filename])
+            shutil.move(str(tmp_path), str(output_path))
+            output_written = True
+        finally:
+            tmp_path.unlink(missing_ok=True)
     result["converted_count"] = len(converted)
     result["skipped_count"] = len(skipped)
     summary = result["summary"]
@@ -1121,6 +1130,7 @@ def apply_docx(
     summary["converted"] = len(converted)
     summary["skipped"] = len(skipped)
     summary["failed"] = len(skipped)
+    summary["output_written"] = output_written
     result_path.parent.mkdir(parents=True, exist_ok=True)
     result_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     return result
