@@ -66,6 +66,9 @@ def build_parser() -> argparse.ArgumentParser:
     apply.add_argument("--report", type=Path, required=True)
     apply.add_argument("--dry-run", action="store_true", help="preview changes without writing a DOCX")
     apply.add_argument(
+        "--strict", action="store_true", help="do not write output if any selected formula fails"
+    )
+    apply.add_argument(
         "--xsl", type=Path, help="path to MML2OMML.XSL (optional; built-in Python backend used otherwise)"
     )
 
@@ -79,6 +82,9 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["high", "medium", "all"],
         default="high",
         help="minimum confidence level to convert (default: high)",
+    )
+    convert.add_argument(
+        "--strict", action="store_true", help="do not write output if any selected formula fails"
     )
 
     doctor = subparsers.add_parser("doctor", help="check the local MathFmt environment")
@@ -124,12 +130,22 @@ def run_convert(args: argparse.Namespace) -> int:
                 if c_level > min_level:
                     c["selected"] = False
             review_path.write_text(json.dumps(review, ensure_ascii=False, indent=2), encoding="utf-8")
-        result = apply_docx(args.input, review_path, output, report_path, xsl, command_name="convert")
+        result = apply_docx(
+            args.input,
+            review_path,
+            output,
+            report_path,
+            xsl,
+            command_name="convert",
+            strict=args.strict,
+        )
     print(f"Candidates: {scan['summary']['candidates']}")
     print(f"Converted: {result['converted_count']}")
     print(f"Skipped: {result['skipped_count']}")
     print(f"Output: {output}")
     print(f"Report: {report_path}")
+    if result.get("summary", {}).get("strict_failed"):
+        return 1
     return 0 if result["skipped_count"] == 0 else 2
 
 
@@ -159,6 +175,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.report,
                 xsl_path,
                 dry_run=args.dry_run,
+                strict=args.strict,
             )
             print(f"Converted: {result['converted_count']}")
             print(f"Skipped: {result['skipped_count']}")
@@ -167,6 +184,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             else:
                 print(f"Output: {output}")
             print(f"Report: {args.report}")
+            if result.get("summary", {}).get("strict_failed"):
+                return 1
             return 0 if result["skipped_count"] == 0 else 2
         if args.command == "convert":
             return run_convert(args)

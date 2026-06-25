@@ -100,6 +100,40 @@ def test_apply_dry_run_writes_report_without_docx_output(tmp_path: Path) -> None
     assert saved["summary"]["converted"] == saved["converted_count"]
 
 
+def test_apply_strict_skips_docx_output_when_selected_formula_fails(tmp_path: Path) -> None:
+    source = make_docx(tmp_path / "source.docx")
+    review = tmp_path / "review.json"
+    output = tmp_path / "output.docx"
+    result_path = tmp_path / "result.json"
+    review.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {
+                        "id": "stale",
+                        "selected": True,
+                        "part": "word/document.xml",
+                        "paragraph_index": 0,
+                        "start": 0,
+                        "end": 5,
+                        "source": "wrong",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = apply_docx(source, review, output, result_path, xsl_path=None, strict=True)
+    saved = json.loads(result_path.read_text(encoding="utf-8"))
+
+    assert not output.exists()
+    assert result["skipped_count"] == 1
+    assert saved["options"]["strict"] is True
+    assert saved["summary"]["strict_failed"] is True
+    assert saved["summary"]["output_written"] is False
+
+
 def test_refuses_to_overwrite_input(tmp_path: Path) -> None:
     source = make_docx(tmp_path / "source.docx")
     review = tmp_path / "review.json"

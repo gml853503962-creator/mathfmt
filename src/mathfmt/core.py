@@ -961,6 +961,7 @@ def _conversion_report(
     xsl_path: Path | None,
     selected_count: int,
     dry_run: bool,
+    strict: bool,
 ) -> dict[str, object]:
     backend = "office-xsl" if xsl_path is not None else "python"
     return {
@@ -980,6 +981,7 @@ def _conversion_report(
             "backend": backend,
             "xsl": _path_value(xsl_path),
             "dry_run": dry_run,
+            "strict": strict,
         },
         "summary": {
             "selected": selected_count,
@@ -989,6 +991,7 @@ def _conversion_report(
             "warnings": 0,
             "dry_run": dry_run,
             "output_written": False,
+            "strict_failed": False,
         },
         "formulas": [],
         # Backwards-compatible v0.2.x fields:
@@ -1025,6 +1028,7 @@ def apply_docx(
     *,
     command_name: str = "apply",
     dry_run: bool = False,
+    strict: bool = False,
 ) -> dict[str, object]:
     if input_path.suffix.lower() != ".docx" or output_path.suffix.lower() != ".docx":
         raise ValueError("Input and output must be .docx files")
@@ -1043,6 +1047,7 @@ def apply_docx(
         xsl_path=xsl_path,
         selected_count=len(candidates),
         dry_run=dry_run,
+        strict=strict,
     )
     converted = result["converted"]
     skipped = result["skipped"]
@@ -1112,7 +1117,8 @@ def apply_docx(
         parts[part_name] = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
 
     output_written = False
-    if not dry_run:
+    strict_failed = strict and bool(skipped)
+    if not dry_run and not strict_failed:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = output_path.with_suffix(output_path.suffix + ".tmp")
         try:
@@ -1131,6 +1137,7 @@ def apply_docx(
     summary["skipped"] = len(skipped)
     summary["failed"] = len(skipped)
     summary["output_written"] = output_written
+    summary["strict_failed"] = strict_failed
     result_path.parent.mkdir(parents=True, exist_ok=True)
     result_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     return result
