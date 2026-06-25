@@ -196,6 +196,7 @@ def test_coverage_layer_flags_unparseable_candidates(tmp_path: Path) -> None:
     )
     report = validate_docx(source, review_path=review)
     assert report["coverage"]["failures"]
+    assert report["coverage"]["failures"][0]["error_details"]["column"] >= 1
 
 
 # -- CLI integration -----------------------------------------------------------

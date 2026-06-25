@@ -41,15 +41,15 @@ but timelines are best-effort — this is a single-maintainer project.
   - source document, output document, and command options
   - each selected candidate, its paragraph/run location, original text, normalized
     formula, confidence, and conversion status
-  - warnings for skipped, failed, or degraded formulas
+  - warnings for skipped or failed formulas
   - aggregate counts: scanned, selected, converted, skipped, failed, warnings
 - [x] **Dry-run mode** — `mathfmt apply --dry-run` previews the same changes and
   report data without writing a DOCX.
-- [ ] **Failed-formula warnings** — when a formula parses but produces degraded or
-  partial output, flag it in the report so users know to review it manually.
+- [x] **Failed-formula warnings** — selected formulas that fail or are skipped are
+  flagged in `formulas[].warnings` so users know to review them manually.
 - [x] **Per-formula confidence in reports** — include individual confidence scores
   alongside each converted formula, not just aggregate stats.
-- [ ] **Better error messages** — when parsing fails, show _where_ in the formula
+- [x] **Better error messages** — when parsing fails, show _where_ in the formula
   the parser got stuck (column number, nearby text, expected token when known).
 - [x] **`--strict` flag** — fail on any parse/conversion warning instead of silently
   skipping, useful for CI pipelines.
@@ -65,7 +65,7 @@ but timelines are best-effort — this is a single-maintainer project.
 - Strict mode returns a non-zero exit code when any selected formula fails or emits
   a warning that requires manual review.
 - Unit tests and acceptance tests cover success, skipped formula, parse failure,
-  degraded warning, dry-run, and strict-mode failure paths.
+  failed-formula warning, dry-run, and strict-mode failure paths.
 - Documentation includes one minimal quick example and one production review-flow
   example.
 

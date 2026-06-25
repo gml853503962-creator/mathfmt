@@ -51,6 +51,20 @@ def test_formula_errors_are_explicit(source: str) -> None:
         formula_to_mathml(source)
 
 
+def test_formula_error_reports_column_context_and_expected_token() -> None:
+    with pytest.raises(FormulaError) as exc_info:
+        formula_to_mathml("x +")
+
+    error = exc_info.value
+    details = error.to_dict()
+
+    assert error.position == 3
+    assert details["column"] == 4
+    assert "Expected formula atom" in details["message"]
+    assert details["expected"] == "number, identifier, function, matrix, or grouped expression"
+    assert details["context"] == "x +"
+
+
 def test_tokenizer_accepts_trailing_space_and_rejects_unknown_text() -> None:
     assert tokenize("x = 1   ")[-1].kind == "EOF"
     with pytest.raises(FormulaError, match="Unrecognized"):

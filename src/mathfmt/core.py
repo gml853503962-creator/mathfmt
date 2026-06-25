@@ -85,6 +85,8 @@ def mrow(*children: etree._Element) -> etree._Element:
 class Token:
     kind: str
     value: str
+    start: int
+    end: int
 
 
 @dataclass
@@ -96,7 +98,44 @@ class Node:
 
 
 class FormulaError(ValueError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        position: int | None = None,
+        expected: str | None = None,
+        found: str | None = None,
+        source: str | None = None,
+    ) -> None:
+        self.position = position
+        self.expected = expected
+        self.found = found
+        self.source = source
+        details = message
+        if position is not None:
+            details = f"{details} at column {position + 1}"
+            if source:
+                start = max(0, position - 12)
+                end = min(len(source), position + 12)
+                snippet = source[start:end]
+                caret = " " * max(0, position - start) + "^"
+                details = f"{details}: {snippet!r}\n{caret}"
+        super().__init__(details)
+
+    def to_dict(self) -> dict[str, object]:
+        details: dict[str, object] = {"message": str(self)}
+        if self.position is not None:
+            details["position"] = self.position
+            details["column"] = self.position + 1
+        if self.expected:
+            details["expected"] = self.expected
+        if self.found:
+            details["found"] = self.found
+        if self.source:
+            start = max(0, (self.position or 0) - 12)
+            end = min(len(self.source), (self.position or 0) + 12)
+            details["context"] = self.source[start:end]
+        return details
 
 
 TOKEN_RE = re.compile(
@@ -172,13 +211,19 @@ def tokenize(text: str) -> list[Token]:
         if not match:
             if text[position:].strip() == "":
                 break
-            raise FormulaError(f"Unrecognized formula text near: {text[position : position + 24]!r}")
+            raise FormulaError(
+                f"Unrecognized formula text near: {text[position : position + 24]!r}",
+                position=position,
+                expected="number, identifier, operator, or grouping symbol",
+                found=text[position],
+                source=text,
+            )
         kind = match.lastgroup
         if kind is None:
-            raise FormulaError("Tokenizer produced an empty token")
-        tokens.append(Token(kind, match.group(kind)))
+            raise FormulaError("Tokenizer produced an empty token", position=position, source=text)
+        tokens.append(Token(kind, match.group(kind), match.start(kind), match.end(kind)))
         position = match.end()
-    tokens.append(Token("EOF", ""))
+    tokens.append(Token("EOF", "", len(text), len(text)))
     return tokens
 
 
@@ -195,9 +240,10 @@ def _serialize_ast(node: Node) -> str:
 
 
 class Parser:
-    def __init__(self, tokens: Sequence[Token], derivatives: dict[str, tuple[int, str, str]]):
+    def __init__(self, tokens: Sequence[Token], derivatives: dict[str, tuple[int, str, str]], source: str):
         self.tokens = tokens
         self.derivatives = derivatives
+        self.source = source
         self.index = 0
 
     @property
@@ -217,13 +263,25 @@ class Parser:
     def expect(self, kind: str) -> Token:
         token = self.accept(kind)
         if token is None:
-            raise FormulaError(f"Expected {kind}, got {self.current.kind} {self.current.value!r}")
+            raise FormulaError(
+                f"Expected {kind}, got {self.current.kind} {self.current.value!r}",
+                position=self.current.start,
+                expected=kind,
+                found=self.current.value or self.current.kind,
+                source=self.source,
+            )
         return token
 
     def parse(self) -> Node:
         node = self.parse_sequence()
         if self.current.kind != "EOF":
-            raise FormulaError(f"Unexpected token: {self.current.value!r}")
+            raise FormulaError(
+                f"Unexpected token: {self.current.value!r}",
+                position=self.current.start,
+                expected="end of formula",
+                found=self.current.value,
+                source=self.source,
+            )
         return node
 
     def parse_sequence(self, semi_is_branch: bool = False) -> Node:
@@ -312,7 +370,13 @@ class Parser:
         child = self.parse_sequence(semi_is_branch=(opener == "{"))
         token = self.expect("RPAREN")
         if token.value != closer:
-            raise FormulaError(f"Mismatched group: {opener}{token.value}")
+            raise FormulaError(
+                f"Mismatched group: {opener}{token.value}",
+                position=token.start,
+                expected=closer,
+                found=token.value,
+                source=self.source,
+            )
         if child.kind == "piecewise":
             return child
         if opener == "[" and child.kind == "sequence":
@@ -356,7 +420,13 @@ class Parser:
                     return Node("limit", children=group.children)
                 return Node("function", name, group.children)
             return Node("identifier", name)
-        raise FormulaError(f"Expected formula atom, got {self.current.kind} {self.current.value!r}")
+        raise FormulaError(
+            f"Expected formula atom, got {self.current.kind} {self.current.value!r}",
+            position=self.current.start,
+            expected="number, identifier, function, matrix, or grouped expression",
+            found=self.current.value or self.current.kind,
+            source=self.source,
+        )
 
     def _parse_matrix(self) -> Node:
         rows: list[Node] = []
@@ -371,7 +441,13 @@ class Parser:
             elif self.accept("MATRIX_CLOSE"):
                 break
             else:
-                raise FormulaError("Expected ]] or , between matrix rows")
+                raise FormulaError(
+                    "Expected ]] or , between matrix rows",
+                    position=self.current.start,
+                    expected="]] or ,",
+                    found=self.current.value or self.current.kind,
+                    source=self.source,
+                )
         return Node("matrix", children=tuple(rows))
 
 
@@ -571,7 +647,7 @@ def _nary_mathml(node: Node) -> etree._Element:
 
 def formula_to_mathml(source: str) -> etree._Element:
     normalized, derivatives = preprocess_formula(source)
-    ast = Parser(tokenize(normalized), derivatives).parse()
+    ast = Parser(tokenize(normalized), derivatives, normalized).parse()
     root = mml("math", display="inline", nsmap={None: MML_NS})
     root.append(node_to_mathml(ast))
     return root
@@ -784,6 +860,7 @@ def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
                     candidate["selected"] = False
                     candidate["parse_status"] = "review"
                     candidate["parse_error"] = str(exc)
+                    candidate["parse_error_details"] = _error_details(exc)
                 candidates.append(candidate)
     summary["candidates"] = len(candidates)
     report["candidates"] = candidates
@@ -927,12 +1004,20 @@ def _candidate_location(candidate: dict[str, object]) -> dict[str, object]:
     }
 
 
+def _error_details(exc: Exception) -> dict[str, object]:
+    if isinstance(exc, FormulaError):
+        return exc.to_dict()
+    return {"message": str(exc)}
+
+
 def _formula_report_item(
     candidate: dict[str, object],
     *,
     status: str,
     message: str | None = None,
     lines: int | None = None,
+    error_details: dict[str, object] | None = None,
+    warning_code: str | None = None,
 ) -> dict[str, object]:
     item: dict[str, object] = {
         "id": candidate.get("id"),
@@ -948,6 +1033,10 @@ def _formula_report_item(
     if message:
         key = "error" if status in {"failed", "skipped"} else "message"
         item[key] = message
+    if error_details:
+        item["error_details"] = error_details
+    if warning_code and message:
+        item["warnings"] = [{"code": warning_code, "message": message}]
     return item
 
 
@@ -1066,7 +1155,11 @@ def apply_docx(
             for candidate in group:
                 error = "DOCX part not found"
                 skipped.append({"id": candidate.get("id"), "error": error})
-                formulas.append(_formula_report_item(candidate, status="skipped", message=error))
+                formulas.append(
+                    _formula_report_item(
+                        candidate, status="skipped", message=error, warning_code="location_skipped"
+                    )
+                )
             continue
         root = etree.fromstring(parts[part_name])
         paragraphs = root.xpath(".//w:p", namespaces=NS)
@@ -1074,7 +1167,11 @@ def apply_docx(
             for candidate in group:
                 error = "Paragraph index out of range"
                 skipped.append({"id": candidate.get("id"), "error": error})
-                formulas.append(_formula_report_item(candidate, status="skipped", message=error))
+                formulas.append(
+                    _formula_report_item(
+                        candidate, status="skipped", message=error, warning_code="location_skipped"
+                    )
+                )
             continue
         paragraph = paragraphs[paragraph_index]
         original_text = paragraph_text(paragraph)
@@ -1113,7 +1210,15 @@ def apply_docx(
             except Exception as exc:
                 error = str(exc)
                 skipped.append({"id": candidate.get("id"), "source": candidate.get("source"), "error": error})
-                formulas.append(_formula_report_item(candidate, status="skipped", message=error))
+                formulas.append(
+                    _formula_report_item(
+                        candidate,
+                        status="failed",
+                        message=error,
+                        error_details=_error_details(exc),
+                        warning_code="conversion_failed",
+                    )
+                )
         parts[part_name] = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
 
     output_written = False
@@ -1135,7 +1240,8 @@ def apply_docx(
     assert isinstance(summary, dict)
     summary["converted"] = len(converted)
     summary["skipped"] = len(skipped)
-    summary["failed"] = len(skipped)
+    summary["failed"] = sum(1 for item in formulas if item.get("status") == "failed")
+    summary["warnings"] = sum(1 for item in formulas if item.get("warnings"))
     summary["output_written"] = output_written
     summary["strict_failed"] = strict_failed
     result_path.parent.mkdir(parents=True, exist_ok=True)

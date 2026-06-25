@@ -87,12 +87,14 @@ Open `candidates.json` and for each candidate:
 | `linear` | The formula string that will be parsed (edit this to fix notation, e.g. change `p1,2` to `p1, p2` if you prefer comma-separated subscripts) |
 | `selected` | Set to `true` to convert, `false` to skip |
 | `parse_status` | `"ok"` = parsable; `"review"` = failed, check `parse_error` |
+| `parse_error_details` | Structured parse location: column, nearby context, expected token, and found token when available |
 
 Common review actions:
 
 - **False positive** (prose misidentified as formula): set `"selected": false`.
 - **Notation fix**: edit the `linear` field. For example, if the source is `s'(t) + s''(t)` and you want both derivatives, keep it as-is. If you want only first-order, shorten it.
-- **Parse failure**: read `parse_error`, adjust `linear`, re-run `scan` to verify.
+- **Parse failure**: read `parse_error` and `parse_error_details`, adjust `linear`,
+  re-run `scan` to verify.
 
 ### Step 3 — Apply
 
@@ -214,9 +216,11 @@ mathfmt convert input.docx --output final.docx --report conversion.json
 | `options.strict` | `true` when failures prevent DOCX output |
 | `summary.output_written` | Whether a DOCX output file was written |
 | `summary.strict_failed` | Whether strict mode blocked DOCX output |
-| `formulas[].status` | Per-formula result: `"converted"` or `"skipped"` |
+| `formulas[].status` | Per-formula result: `"converted"`, `"skipped"`, or `"failed"` |
 | `formulas[].location` | DOCX part, paragraph index, and character span |
 | `formulas[].confidence` | Per-formula confidence copied from the review report |
+| `formulas[].warnings` | Manual-review warnings such as failed conversion or stale location |
+| `formulas[].error_details` | Structured parser details such as column, context, expected token, and found token |
 | `converted_count` | Formulas successfully converted |
 | `skipped_count` | Formulas that could not be converted |
 | `converted[].lines` | Number of equation lines (1 normally; >1 for split long table formulas) |

@@ -201,6 +201,8 @@ def test_scan_records_empty_pict_and_unparseable_formula(tmp_path: Path) -> None
     assert report["candidates"][0]["parse_status"] == "review"
     assert report["candidates"][0]["selected"] is False
     assert report["candidates"][0]["parse_error"]
+    assert report["candidates"][0]["parse_error_details"]["column"] >= 1
+    assert report["candidates"][0]["parse_error_details"]["expected"]
 
 
 def test_apply_preserves_mixed_text_across_runs(tmp_path: Path) -> None:
@@ -335,6 +337,50 @@ def test_apply_reports_stale_and_invalid_review_locations(tmp_path: Path) -> Non
     assert "part not found" in errors["missing-part"]
     assert "index out of range" in errors["missing-paragraph"]
     assert "no longer matches" in errors["stale"]
+    formulas = {item["id"]: item for item in result["formulas"]}
+    assert formulas["missing-part"]["status"] == "skipped"
+    assert formulas["stale"]["status"] == "failed"
+    assert formulas["stale"]["warnings"][0]["code"] == "conversion_failed"
+
+
+def test_apply_report_includes_parse_error_details_for_failed_formula(tmp_path: Path) -> None:
+    document = document_with_body("<w:p><w:r><w:t>x = 1</w:t></w:r></w:p>")
+    source = make_docx(tmp_path / "source.docx", document_xml=document)
+    review = tmp_path / "review.json"
+    result_path = tmp_path / "result.json"
+    review.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {
+                        "id": "bad-linear",
+                        "selected": True,
+                        "part": "word/document.xml",
+                        "paragraph_index": 0,
+                        "start": 0,
+                        "end": 5,
+                        "source": "x = 1",
+                        "linear": "x +",
+                        "display": False,
+                        "confidence": "high",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = apply_docx(source, review, tmp_path / "output.docx", result_path, xsl_path=None)
+    saved = json.loads(result_path.read_text(encoding="utf-8"))
+    formula = saved["formulas"][0]
+
+    assert result["skipped_count"] == 1
+    assert saved["summary"]["failed"] == 1
+    assert saved["summary"]["warnings"] == 1
+    assert formula["status"] == "failed"
+    assert formula["warnings"][0]["code"] == "conversion_failed"
+    assert formula["error_details"]["column"] == 4
+    assert formula["error_details"]["expected"]
 
 
 def test_apply_rejects_invalid_extensions_and_nested_hyperlink(tmp_path: Path) -> None:

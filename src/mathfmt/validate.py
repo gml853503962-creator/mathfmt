@@ -13,6 +13,7 @@ from .core import (
     NS,
     TARGET_PART_RE,
     FormulaError,
+    _error_details,
     _mathml_to_omml_xsl,
     formula_to_mathml,
     inspect_docx,
@@ -181,7 +182,9 @@ def _validate_coverage(
             mathml = formula_to_mathml(source)
             result["parseable"] += 1
         except FormulaError as exc:
-            result["failures"].append({"source": source, "error": str(exc)})
+            result["failures"].append(
+                {"source": source, "error": str(exc), "error_details": _error_details(exc)}
+            )
             continue
 
         # Check OMML producible
