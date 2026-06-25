@@ -43,7 +43,9 @@ mathfmt convert input.docx --output output.docx
 
 # Scan first, review candidates, then apply (recommended for production)
 mathfmt scan input.docx --report candidates.json
+mathfmt apply input.docx --review candidates.json --report preview.json --dry-run
 mathfmt apply input.docx --review candidates.json --output output.docx --report result.json
+mathfmt apply input.docx --review candidates.json --output output.docx --report result.json --strict
 ```
 
 For detailed workflow, see [docs/workflow.md](docs/workflow.md).
@@ -94,7 +96,9 @@ MathFmt 将 DOCX 中的普通文本公式排版为 Word 原生 OMML 公式。
 
 ```powershell
 mathfmt scan    input.docx --report candidates.json   # 扫描公式候选
+mathfmt apply   input.docx --review candidates.json --report preview.json --dry-run  # 仅预览，不写 DOCX
 mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json  # 审核后转换
+mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json --strict  # 失败则不写输出
 mathfmt convert input.docx                           # 保守一键转换
 mathfmt validate input.docx                           # 离线结构验证
 mathfmt doctor                                        # 环境诊断
@@ -181,7 +185,9 @@ MathFmt converts plain-text formulas in DOCX files into native Word OMML equatio
 
 ```powershell
 mathfmt scan    input.docx --report candidates.json   # Scan formula candidates
+mathfmt apply   input.docx --review candidates.json --report preview.json --dry-run  # Preview only
 mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json  # Apply reviewed candidates
+mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json --strict  # Do not write output on failures
 mathfmt convert input.docx                           # Conservative one-step conversion
 mathfmt validate input.docx                           # Offline structure validation
 mathfmt doctor                                        # Environment check

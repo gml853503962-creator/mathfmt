@@ -36,22 +36,22 @@ but timelines are best-effort — this is a single-maintainer project.
 
 ### Feature backlog
 
-- [ ] **Conversion report** — after `apply`, generate a structured JSON report plus
+- [x] **Conversion report** — after `apply`, generate a structured JSON report plus
   an optional human-readable summary showing:
   - source document, output document, and command options
   - each selected candidate, its paragraph/run location, original text, normalized
     formula, confidence, and conversion status
   - warnings for skipped, failed, or degraded formulas
   - aggregate counts: scanned, selected, converted, skipped, failed, warnings
-- [ ] **Dry-run mode** — `mathfmt apply --dry-run` previews the same changes and
+- [x] **Dry-run mode** — `mathfmt apply --dry-run` previews the same changes and
   report data without writing a DOCX.
 - [ ] **Failed-formula warnings** — when a formula parses but produces degraded or
   partial output, flag it in the report so users know to review it manually.
-- [ ] **Per-formula confidence in reports** — include individual confidence scores
+- [x] **Per-formula confidence in reports** — include individual confidence scores
   alongside each converted formula, not just aggregate stats.
 - [ ] **Better error messages** — when parsing fails, show _where_ in the formula
   the parser got stuck (column number, nearby text, expected token when known).
-- [ ] **`--strict` flag** — fail on any parse/conversion warning instead of silently
+- [x] **`--strict` flag** — fail on any parse/conversion warning instead of silently
   skipping, useful for CI pipelines.
 
 ### Acceptance criteria
