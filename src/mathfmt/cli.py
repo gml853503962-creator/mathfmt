@@ -123,7 +123,7 @@ def run_convert(args: argparse.Namespace) -> int:
                 if c_level > min_level:
                     c["selected"] = False
             review_path.write_text(json.dumps(review, ensure_ascii=False, indent=2), encoding="utf-8")
-        result = apply_docx(args.input, review_path, output, report_path, xsl)
+        result = apply_docx(args.input, review_path, output, report_path, xsl, command_name="convert")
     print(f"Candidates: {scan['summary']['candidates']}")
     print(f"Converted: {result['converted_count']}")
     print(f"Skipped: {result['skipped_count']}")

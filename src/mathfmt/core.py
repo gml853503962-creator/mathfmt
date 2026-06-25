@@ -14,6 +14,7 @@ from pathlib import Path
 
 from lxml import etree
 
+from ._version import __version__
 from .omml import mathml_to_omml_py
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -913,6 +914,89 @@ def estimated_formula_width(text: str) -> int:
     return len(text) + derivative_count * 18
 
 
+def _path_value(path: Path | None) -> str | None:
+    return str(path.resolve()) if path is not None else None
+
+
+def _candidate_location(candidate: dict[str, object]) -> dict[str, object]:
+    return {
+        "part": candidate.get("part"),
+        "paragraph_index": candidate.get("paragraph_index"),
+        "start": candidate.get("start"),
+        "end": candidate.get("end"),
+    }
+
+
+def _formula_report_item(
+    candidate: dict[str, object],
+    *,
+    status: str,
+    message: str | None = None,
+    lines: int | None = None,
+) -> dict[str, object]:
+    item: dict[str, object] = {
+        "id": candidate.get("id"),
+        "status": status,
+        "source": candidate.get("source"),
+        "linear": candidate.get("linear", candidate.get("source")),
+        "confidence": candidate.get("confidence"),
+        "display": bool(candidate.get("display")),
+        "location": _candidate_location(candidate),
+    }
+    if lines is not None:
+        item["lines"] = lines
+    if message:
+        key = "error" if status in {"failed", "skipped"} else "message"
+        item[key] = message
+    return item
+
+
+def _conversion_report(
+    *,
+    command_name: str,
+    input_path: Path,
+    review_path: Path,
+    output_path: Path,
+    result_path: Path,
+    xsl_path: Path | None,
+    selected_count: int,
+) -> dict[str, object]:
+    backend = "office-xsl" if xsl_path is not None else "python"
+    return {
+        "schema_version": 3,
+        "report_type": "conversion",
+        "mathfmt": __version__,
+        "command": {"name": command_name},
+        "inputs": {
+            "docx": _path_value(input_path),
+            "review": _path_value(review_path),
+        },
+        "outputs": {
+            "docx": _path_value(output_path),
+            "report": _path_value(result_path),
+        },
+        "options": {
+            "backend": backend,
+            "xsl": _path_value(xsl_path),
+        },
+        "summary": {
+            "selected": selected_count,
+            "converted": 0,
+            "skipped": 0,
+            "failed": 0,
+            "warnings": 0,
+        },
+        "formulas": [],
+        # Backwards-compatible v0.2.x fields:
+        "input": _path_value(input_path),
+        "output": _path_value(output_path),
+        "review": _path_value(review_path),
+        "xsl": _path_value(xsl_path),
+        "converted": [],
+        "skipped": [],
+    }
+
+
 def set_math_font_size(omath: etree._Element, half_points: int) -> None:
     for math_run in omath.xpath(".//m:r", namespaces=NS):
         word_rpr = math_run.find(qname(W_NS, "rPr"))
@@ -934,6 +1018,8 @@ def apply_docx(
     output_path: Path,
     result_path: Path,
     xsl_path: Path | None = None,
+    *,
+    command_name: str = "apply",
 ) -> dict[str, object]:
     if input_path.suffix.lower() != ".docx" or output_path.suffix.lower() != ".docx":
         raise ValueError("Input and output must be .docx files")
@@ -943,14 +1029,21 @@ def apply_docx(
     candidates = [c for c in review.get("candidates", []) if c.get("selected")]
     infos, parts = inspect_docx(input_path)
     transform = etree.XSLT(etree.parse(str(xsl_path))) if xsl_path is not None else None
-    result: dict[str, object] = {
-        "input": str(input_path.resolve()),
-        "output": str(output_path.resolve()),
-        "review": str(review_path.resolve()),
-        "xsl": str(xsl_path.resolve()) if xsl_path else None,
-        "converted": [],
-        "skipped": [],
-    }
+    result = _conversion_report(
+        command_name=command_name,
+        input_path=input_path,
+        review_path=review_path,
+        output_path=output_path,
+        result_path=result_path,
+        xsl_path=xsl_path,
+        selected_count=len(candidates),
+    )
+    converted = result["converted"]
+    skipped = result["skipped"]
+    formulas = result["formulas"]
+    assert isinstance(converted, list)
+    assert isinstance(skipped, list)
+    assert isinstance(formulas, list)
 
     grouped: dict[tuple[str, int], list[dict[str, object]]] = {}
     for candidate in candidates:
@@ -960,13 +1053,17 @@ def apply_docx(
     for (part_name, paragraph_index), group in grouped.items():
         if part_name not in parts:
             for candidate in group:
-                result["skipped"].append({"id": candidate.get("id"), "error": "DOCX part not found"})
+                error = "DOCX part not found"
+                skipped.append({"id": candidate.get("id"), "error": error})
+                formulas.append(_formula_report_item(candidate, status="skipped", message=error))
             continue
         root = etree.fromstring(parts[part_name])
         paragraphs = root.xpath(".//w:p", namespaces=NS)
         if paragraph_index >= len(paragraphs):
             for candidate in group:
-                result["skipped"].append({"id": candidate.get("id"), "error": "Paragraph index out of range"})
+                error = "Paragraph index out of range"
+                skipped.append({"id": candidate.get("id"), "error": error})
+                formulas.append(_formula_report_item(candidate, status="skipped", message=error))
             continue
         paragraph = paragraphs[paragraph_index]
         original_text = paragraph_text(paragraph)
@@ -998,13 +1095,14 @@ def apply_docx(
                 else:
                     omath = equations[0]
                     replace_inline_span(paragraph, start, end, omath)
-                result["converted"].append(
+                converted.append(
                     {"id": candidate.get("id"), "source": source, "part": part_name, "lines": len(equations)}
                 )
+                formulas.append(_formula_report_item(candidate, status="converted", lines=len(equations)))
             except Exception as exc:
-                result["skipped"].append(
-                    {"id": candidate.get("id"), "source": candidate.get("source"), "error": str(exc)}
-                )
+                error = str(exc)
+                skipped.append({"id": candidate.get("id"), "source": candidate.get("source"), "error": error})
+                formulas.append(_formula_report_item(candidate, status="skipped", message=error))
         parts[part_name] = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1016,8 +1114,13 @@ def apply_docx(
         shutil.move(str(tmp_path), str(output_path))
     finally:
         tmp_path.unlink(missing_ok=True)
-    result["converted_count"] = len(result["converted"])
-    result["skipped_count"] = len(result["skipped"])
+    result["converted_count"] = len(converted)
+    result["skipped_count"] = len(skipped)
+    summary = result["summary"]
+    assert isinstance(summary, dict)
+    summary["converted"] = len(converted)
+    summary["skipped"] = len(skipped)
+    summary["failed"] = len(skipped)
     result_path.parent.mkdir(parents=True, exist_ok=True)
     result_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     return result

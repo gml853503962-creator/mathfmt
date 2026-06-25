@@ -38,6 +38,20 @@ def test_valid_docx_passes_validation(tmp_path: Path) -> None:
     assert pkg.get("paragraphs", 0) > 0
 
 
+def test_validate_report_uses_v3_top_level_schema(tmp_path: Path) -> None:
+    source = make_docx(tmp_path / "source.docx")
+    report = validate_docx(source)
+
+    assert report["schema_version"] == 3
+    assert report["report_type"] == "validation"
+    assert report["command"]["name"] == "validate"
+    assert report["inputs"]["docx"] == str(source.resolve())
+    assert report["inputs"]["review"] is None
+    assert report["options"]["backend"] == "python"
+    assert report["summary"]["valid"] is True
+    assert report["summary"]["errors"] == 0
+
+
 def test_valid_docx_with_omml_passes(tmp_path: Path) -> None:
     clean_omath = omath_for("x = 1")
     source = make_docx_with_omml(
