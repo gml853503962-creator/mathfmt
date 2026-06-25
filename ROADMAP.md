@@ -23,17 +23,51 @@ but timelines are best-effort — this is a single-maintainer project.
 
 **Focus:** Give users confidence in automated conversion and visibility into what changed.
 
-- [ ] **Conversion report** — after `apply`, generate a structured report (JSON + human-readable)
-  showing exactly which text runs were replaced and with what OMML
-- [ ] **Dry-run mode** — `mathfmt apply --dry-run` that previews changes without writing
-- [ ] **Failed-formula warnings** — when a formula parses but produces degraded output,
-  flag it in the report so users know to review it manually
-- [ ] **Per-formula confidence in reports** — include individual confidence scores alongside
-  each converted formula, not just aggregate stats
-- [ ] **Better error messages** — when parsing fails, show _where_ in the formula the
-  parser got stuck (column number, expected token)
-- [ ] **`--strict` flag** — fail on any parse error instead of silently skipping (useful
-  in CI pipelines)
+### Planned implementation order
+
+1. **Report schema first** — stabilize the JSON fields so `apply`, `convert`,
+   `validate`, and future docs can point to one consistent structure.
+2. **Dry-run second** — reuse the same report schema, but guarantee the source
+   DOCX and output path are not modified.
+3. **Safety flags third** — add strict failure behavior and clearer parse hints
+   once reporting has a stable place to surface them.
+4. **Docs and examples last** — update the workflow guide and example walkthrough
+   only after the CLI behavior is covered by tests.
+
+### Feature backlog
+
+- [x] **Conversion report** — after `apply`, generate a structured JSON report plus
+  an optional human-readable summary showing:
+  - source document, output document, and command options
+  - each selected candidate, its paragraph/run location, original text, normalized
+    formula, confidence, and conversion status
+  - warnings for skipped or failed formulas
+  - aggregate counts: scanned, selected, converted, skipped, failed, warnings
+- [x] **Dry-run mode** — `mathfmt apply --dry-run` previews the same changes and
+  report data without writing a DOCX.
+- [x] **Failed-formula warnings** — selected formulas that fail or are skipped are
+  flagged in `formulas[].warnings` so users know to review them manually.
+- [x] **Per-formula confidence in reports** — include individual confidence scores
+  alongside each converted formula, not just aggregate stats.
+- [x] **Better error messages** — when parsing fails, show _where_ in the formula
+  the parser got stuck (column number, nearby text, expected token when known).
+- [x] **`--strict` flag** — fail on any parse/conversion warning instead of silently
+  skipping, useful for CI pipelines.
+
+### Acceptance criteria
+
+- `mathfmt apply --dry-run input.docx --review candidates.json --report result.json`
+  exits successfully, writes `result.json`, and leaves all DOCX files unchanged.
+- `mathfmt apply ... --report result.json` and `mathfmt convert ... --report result.json`
+  use the same top-level report schema.
+- Reports are deterministic enough for regression tests: stable keys, stable counts,
+  and no absolute temporary paths unless explicitly requested.
+- Strict mode returns a non-zero exit code when any selected formula fails or emits
+  a warning that requires manual review.
+- Unit tests and acceptance tests cover success, skipped formula, parse failure,
+  failed-formula warning, dry-run, and strict-mode failure paths.
+- Documentation includes one minimal quick example and one production review-flow
+  example.
 
 ## v0.4.0 — Formula Coverage · 公式覆盖
 

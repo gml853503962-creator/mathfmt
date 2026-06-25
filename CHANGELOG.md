@@ -2,6 +2,19 @@
 
 All notable changes to MathFmt are documented here.
 
+## [Unreleased]
+
+### Added
+- v3 conversion/validation report metadata: `schema_version`, `report_type`, `command`,
+  `inputs`, `outputs`, `options`, `summary`, and per-formula `formulas`.
+- `mathfmt apply --dry-run` previews reviewed conversions and writes a report without
+  writing a DOCX output file.
+- `mathfmt apply --strict` and `mathfmt convert --strict` block DOCX output when any
+  selected formula fails or is skipped.
+- Structured parser error details in scan, apply, and validation reports: column,
+  nearby context, expected token, and found token when available.
+- Per-formula warnings for selected formulas that fail or are skipped during apply.
+
 ## [0.2.3] - 2026-06-22
 
 ### Fixed

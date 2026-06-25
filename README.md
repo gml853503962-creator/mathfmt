@@ -43,7 +43,9 @@ mathfmt convert input.docx --output output.docx
 
 # Scan first, review candidates, then apply (recommended for production)
 mathfmt scan input.docx --report candidates.json
+mathfmt apply input.docx --review candidates.json --report preview.json --dry-run
 mathfmt apply input.docx --review candidates.json --output output.docx --report result.json
+mathfmt apply input.docx --review candidates.json --output output.docx --report result.json --strict
 ```
 
 For detailed workflow, see [docs/workflow.md](docs/workflow.md).
@@ -94,7 +96,9 @@ MathFmt 将 DOCX 中的普通文本公式排版为 Word 原生 OMML 公式。
 
 ```powershell
 mathfmt scan    input.docx --report candidates.json   # 扫描公式候选
+mathfmt apply   input.docx --review candidates.json --report preview.json --dry-run  # 仅预览，不写 DOCX
 mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json  # 审核后转换
+mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json --strict  # 失败则不写输出
 mathfmt convert input.docx                           # 保守一键转换
 mathfmt validate input.docx                           # 离线结构验证
 mathfmt doctor                                        # 环境诊断
@@ -125,7 +129,7 @@ pip install --upgrade mathfmt
 | **0.2.1** (2026-06-21) | GitHub 自更新；缓存隔离；SemVer 预发布支持 |
 | **0.2.2** (2026-06-21) | CI/Ruff 修复；缓存崩溃修复；退出码修正；验证报告版本 |
 | **0.2.3** (2026-06-22) | Parser 修复（省略号/阶乘/大型算子/边界/深度）；文档与示例完善 |
-| **0.3.0** (2026-Q4) | 转换报告；dry-run；失败公式提示；更好的错误信息 |
+| **0.3.0** (2026-Q4) | 结构化转换报告；dry-run 预览；严格模式；失败公式提示；更好的错误信息 |
 | **1.0.0** (2027) | 稳定 API；长期支持 |
 
 ### 更多文档
@@ -181,7 +185,9 @@ MathFmt converts plain-text formulas in DOCX files into native Word OMML equatio
 
 ```powershell
 mathfmt scan    input.docx --report candidates.json   # Scan formula candidates
+mathfmt apply   input.docx --review candidates.json --report preview.json --dry-run  # Preview only
 mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json  # Apply reviewed candidates
+mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json --strict  # Do not write output on failures
 mathfmt convert input.docx                           # Conservative one-step conversion
 mathfmt validate input.docx                           # Offline structure validation
 mathfmt doctor                                        # Environment check
@@ -212,7 +218,7 @@ pip install --upgrade mathfmt
 | **0.2.1** (2026-06-21) | GitHub self-update; cache isolation; SemVer pre-release support |
 | **0.2.2** (2026-06-21) | CI/Ruff fixes; cache crash fix; exit code correction; validate version |
 | **0.2.3** (2026-06-22) | Parser fixes (ellipsis, factorial, n-ary, 1(t), x_bar, boundary); depth validation; docs & examples |
-| **0.3.0** (2026-Q4) | Conversion report; dry-run; failed-formula warnings; better errors |
+| **0.3.0** (2026-Q4) | Structured conversion reports; dry-run preview; strict mode; failed-formula warnings; better errors |
 | **1.0.0** (2027) | Stable API; long-term support |
 
 ### Further Reading

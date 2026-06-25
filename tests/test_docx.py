@@ -54,6 +54,86 @@ def test_apply_creates_omml_without_overwriting_source(tmp_path: Path) -> None:
     assert json.loads(result_path.read_text(encoding="utf-8"))["converted_count"] > 0
 
 
+def test_apply_writes_v3_conversion_report_schema(tmp_path: Path) -> None:
+    source = make_docx(tmp_path / "source.docx")
+    review = tmp_path / "review.json"
+    result_path = tmp_path / "result.json"
+    output = tmp_path / "output.docx"
+
+    scan_docx(source, review)
+    result = apply_docx(source, review, output, result_path, xsl_path=None)
+    saved = json.loads(result_path.read_text(encoding="utf-8"))
+
+    assert result["schema_version"] == 3
+    assert saved["schema_version"] == 3
+    assert saved["report_type"] == "conversion"
+    assert saved["command"]["name"] == "apply"
+    assert saved["inputs"]["docx"] == str(source.resolve())
+    assert saved["inputs"]["review"] == str(review.resolve())
+    assert saved["outputs"]["docx"] == str(output.resolve())
+    assert saved["outputs"]["report"] == str(result_path.resolve())
+    assert saved["options"]["backend"] == "python"
+    assert saved["summary"]["selected"] >= saved["summary"]["converted"]
+    assert saved["summary"]["converted"] == saved["converted_count"]
+    assert saved["summary"]["skipped"] == saved["skipped_count"]
+    assert saved["formulas"]
+    assert {item["status"] for item in saved["formulas"]} == {"converted"}
+
+
+def test_apply_dry_run_writes_report_without_docx_output(tmp_path: Path) -> None:
+    source = make_docx(tmp_path / "source.docx")
+    original = source.read_bytes()
+    review = tmp_path / "review.json"
+    result_path = tmp_path / "result.json"
+    output = tmp_path / "output.docx"
+
+    scan_docx(source, review)
+    result = apply_docx(source, review, output, result_path, xsl_path=None, dry_run=True)
+    saved = json.loads(result_path.read_text(encoding="utf-8"))
+
+    assert source.read_bytes() == original
+    assert not output.exists()
+    assert result["converted_count"] > 0
+    assert saved["options"]["dry_run"] is True
+    assert saved["summary"]["dry_run"] is True
+    assert saved["summary"]["output_written"] is False
+    assert saved["summary"]["converted"] == saved["converted_count"]
+
+
+def test_apply_strict_skips_docx_output_when_selected_formula_fails(tmp_path: Path) -> None:
+    source = make_docx(tmp_path / "source.docx")
+    review = tmp_path / "review.json"
+    output = tmp_path / "output.docx"
+    result_path = tmp_path / "result.json"
+    review.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {
+                        "id": "stale",
+                        "selected": True,
+                        "part": "word/document.xml",
+                        "paragraph_index": 0,
+                        "start": 0,
+                        "end": 5,
+                        "source": "wrong",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = apply_docx(source, review, output, result_path, xsl_path=None, strict=True)
+    saved = json.loads(result_path.read_text(encoding="utf-8"))
+
+    assert not output.exists()
+    assert result["skipped_count"] == 1
+    assert saved["options"]["strict"] is True
+    assert saved["summary"]["strict_failed"] is True
+    assert saved["summary"]["output_written"] is False
+
+
 def test_refuses_to_overwrite_input(tmp_path: Path) -> None:
     source = make_docx(tmp_path / "source.docx")
     review = tmp_path / "review.json"
@@ -67,7 +147,11 @@ def test_convert_command_uses_safe_defaults(tmp_path: Path) -> None:
     xsl = make_fake_xsl(tmp_path / "fake.xsl")
     assert main(["convert", str(source), "--xsl", str(xsl)]) == 0
     assert (tmp_path / "source.mathfmt.docx").is_file()
-    assert (tmp_path / "source.mathfmt.report.json").is_file()
+    report_path = tmp_path / "source.mathfmt.report.json"
+    assert report_path.is_file()
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["schema_version"] == 3
+    assert report["command"]["name"] == "convert"
 
 
 def test_explicit_missing_xsl_is_reported(tmp_path: Path) -> None:
@@ -117,6 +201,8 @@ def test_scan_records_empty_pict_and_unparseable_formula(tmp_path: Path) -> None
     assert report["candidates"][0]["parse_status"] == "review"
     assert report["candidates"][0]["selected"] is False
     assert report["candidates"][0]["parse_error"]
+    assert report["candidates"][0]["parse_error_details"]["column"] >= 1
+    assert report["candidates"][0]["parse_error_details"]["expected"]
 
 
 def test_apply_preserves_mixed_text_across_runs(tmp_path: Path) -> None:
@@ -251,6 +337,50 @@ def test_apply_reports_stale_and_invalid_review_locations(tmp_path: Path) -> Non
     assert "part not found" in errors["missing-part"]
     assert "index out of range" in errors["missing-paragraph"]
     assert "no longer matches" in errors["stale"]
+    formulas = {item["id"]: item for item in result["formulas"]}
+    assert formulas["missing-part"]["status"] == "skipped"
+    assert formulas["stale"]["status"] == "failed"
+    assert formulas["stale"]["warnings"][0]["code"] == "conversion_failed"
+
+
+def test_apply_report_includes_parse_error_details_for_failed_formula(tmp_path: Path) -> None:
+    document = document_with_body("<w:p><w:r><w:t>x = 1</w:t></w:r></w:p>")
+    source = make_docx(tmp_path / "source.docx", document_xml=document)
+    review = tmp_path / "review.json"
+    result_path = tmp_path / "result.json"
+    review.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {
+                        "id": "bad-linear",
+                        "selected": True,
+                        "part": "word/document.xml",
+                        "paragraph_index": 0,
+                        "start": 0,
+                        "end": 5,
+                        "source": "x = 1",
+                        "linear": "x +",
+                        "display": False,
+                        "confidence": "high",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = apply_docx(source, review, tmp_path / "output.docx", result_path, xsl_path=None)
+    saved = json.loads(result_path.read_text(encoding="utf-8"))
+    formula = saved["formulas"][0]
+
+    assert result["skipped_count"] == 1
+    assert saved["summary"]["failed"] == 1
+    assert saved["summary"]["warnings"] == 1
+    assert formula["status"] == "failed"
+    assert formula["warnings"][0]["code"] == "conversion_failed"
+    assert formula["error_details"]["column"] == 4
+    assert formula["error_details"]["expected"]
 
 
 def test_apply_rejects_invalid_extensions_and_nested_hyperlink(tmp_path: Path) -> None:

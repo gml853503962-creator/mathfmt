@@ -66,6 +66,87 @@ def test_scan_and_apply_commands(tmp_path: Path, capsys: pytest.CaptureFixture[s
     assert "Converted:" in capsys.readouterr().out
 
 
+def test_apply_requires_output_unless_dry_run(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    source = make_docx(tmp_path / "source.docx")
+    review = tmp_path / "review.json"
+    result = tmp_path / "result.json"
+
+    assert cli.main(["scan", str(source), "--report", str(review)]) == 0
+    capsys.readouterr()
+
+    code = cli.main(["apply", str(source), "--review", str(review), "--report", str(result)])
+    assert code == 1
+    assert "requires --output unless --dry-run" in capsys.readouterr().err
+
+
+def test_apply_dry_run_does_not_require_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    source = make_docx(tmp_path / "source.docx")
+    review = tmp_path / "review.json"
+    result = tmp_path / "result.json"
+
+    assert cli.main(["scan", str(source), "--report", str(review)]) == 0
+    capsys.readouterr()
+
+    code = cli.main(["apply", str(source), "--review", str(review), "--report", str(result), "--dry-run"])
+    output = capsys.readouterr().out
+    report = json.loads(result.read_text(encoding="utf-8"))
+
+    assert code == 0
+    assert "dry-run, not written" in output
+    assert not (tmp_path / "source.mathfmt.docx").exists()
+    assert report["options"]["dry_run"] is True
+    assert report["summary"]["output_written"] is False
+
+
+def test_apply_strict_returns_failure_without_writing_output(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = make_docx(tmp_path / "source.docx")
+    review = tmp_path / "review.json"
+    output = tmp_path / "output.docx"
+    result = tmp_path / "result.json"
+    review.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {
+                        "id": "stale",
+                        "selected": True,
+                        "part": "word/document.xml",
+                        "paragraph_index": 0,
+                        "start": 0,
+                        "end": 5,
+                        "source": "wrong",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    code = cli.main(
+        [
+            "apply",
+            str(source),
+            "--review",
+            str(review),
+            "--output",
+            str(output),
+            "--report",
+            str(result),
+            "--strict",
+        ]
+    )
+    capsys.readouterr()
+    report = json.loads(result.read_text(encoding="utf-8"))
+
+    assert code == 1
+    assert not output.exists()
+    assert report["options"]["strict"] is True
+    assert report["summary"]["strict_failed"] is True
+
+
 def test_doctor_command_text_and_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     xsl = make_fake_xsl(tmp_path / "fake.xsl")
     assert cli.main(["doctor", "--xsl", str(xsl)]) == 0

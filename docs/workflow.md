@@ -45,7 +45,7 @@ This produces `candidates.json` containing every detected formula candidate:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "input": "C:\\path\\to\\document.docx",
   "profile": {
     "derivatives": "fraction",
@@ -87,12 +87,14 @@ Open `candidates.json` and for each candidate:
 | `linear` | The formula string that will be parsed (edit this to fix notation, e.g. change `p1,2` to `p1, p2` if you prefer comma-separated subscripts) |
 | `selected` | Set to `true` to convert, `false` to skip |
 | `parse_status` | `"ok"` = parsable; `"review"` = failed, check `parse_error` |
+| `parse_error_details` | Structured parse location: column, nearby context, expected token, and found token when available |
 
 Common review actions:
 
 - **False positive** (prose misidentified as formula): set `"selected": false`.
 - **Notation fix**: edit the `linear` field. For example, if the source is `s'(t) + s''(t)` and you want both derivatives, keep it as-is. If you want only first-order, shorten it.
-- **Parse failure**: read `parse_error`, adjust `linear`, re-run `scan` to verify.
+- **Parse failure**: read `parse_error` and `parse_error_details`, adjust `linear`,
+  re-run `scan` to verify.
 
 ### Step 3 — Apply
 
@@ -100,12 +102,49 @@ Common review actions:
 mathfmt apply document.docx --review candidates.json --output result.docx --report result.json
 ```
 
-This writes `result.docx` with native Word equations and `result.json` with conversion statistics:
+To preview the same conversions without writing a DOCX:
+
+```powershell
+mathfmt apply document.docx --review candidates.json --report preview.json --dry-run
+```
+
+For stricter production runs, use `--strict`. If any selected formula fails or is skipped,
+MathFmt writes the report but does not write the output DOCX:
+
+```powershell
+mathfmt apply document.docx --review candidates.json --output result.docx --report result.json --strict
+```
+
+Normal apply writes `result.docx` with native Word equations and `result.json` with conversion statistics:
 
 ```json
 {
+  "schema_version": 3,
+  "report_type": "conversion",
+  "command": {"name": "apply"},
+  "options": {"backend": "python", "dry_run": false, "strict": false},
+  "summary": {
+    "selected": 15,
+    "converted": 12,
+    "skipped": 3,
+    "failed": 3,
+    "warnings": 0,
+    "dry_run": false,
+    "output_written": true,
+    "strict_failed": false
+  },
   "converted_count": 12,
   "skipped_count": 3,
+  "formulas": [
+    {
+      "id": "f0001",
+      "status": "converted",
+      "source": "x^2 + 1 = 2",
+      "linear": "x^2 + 1 = 2",
+      "confidence": "high",
+      "location": {"part": "word/document.xml", "paragraph_index": 3, "start": 10, "end": 20}
+    }
+  ],
   "converted": [
     {"id": "f0001", "source": "x^2 + 1 = 2", "part": "word/document.xml", "lines": 1}
   ],
@@ -170,10 +209,25 @@ mathfmt convert input.docx --output final.docx --report conversion.json
 
 | Field | Meaning |
 |---|---|
+| `schema_version` | Report schema version (`3` for conversion/validation reports) |
+| `report_type` | `"conversion"` for `apply` and `convert` |
+| `command.name` | `"apply"` or `"convert"` |
+| `options.dry_run` | `true` when previewing without writing DOCX output |
+| `options.strict` | `true` when failures prevent DOCX output |
+| `summary.output_written` | Whether a DOCX output file was written |
+| `summary.strict_failed` | Whether strict mode blocked DOCX output |
+| `formulas[].status` | Per-formula result: `"converted"`, `"skipped"`, or `"failed"` |
+| `formulas[].location` | DOCX part, paragraph index, and character span |
+| `formulas[].confidence` | Per-formula confidence copied from the review report |
+| `formulas[].warnings` | Manual-review warnings such as failed conversion or stale location |
+| `formulas[].error_details` | Structured parser details such as column, context, expected token, and found token |
 | `converted_count` | Formulas successfully converted |
 | `skipped_count` | Formulas that could not be converted |
 | `converted[].lines` | Number of equation lines (1 normally; >1 for split long table formulas) |
 | `skipped[].error` | Reason for skipping |
+
+The legacy `converted_count`, `skipped_count`, `converted`, and `skipped` fields remain
+for compatibility. New automation should prefer `summary` and `formulas`.
 
 ---
 

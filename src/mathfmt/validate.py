@@ -13,6 +13,7 @@ from .core import (
     NS,
     TARGET_PART_RE,
     FormulaError,
+    _error_details,
     _mathml_to_omml_xsl,
     formula_to_mathml,
     inspect_docx,
@@ -181,7 +182,9 @@ def _validate_coverage(
             mathml = formula_to_mathml(source)
             result["parseable"] += 1
         except FormulaError as exc:
-            result["failures"].append({"source": source, "error": str(exc)})
+            result["failures"].append(
+                {"source": source, "error": str(exc), "error_details": _error_details(exc)}
+            )
             continue
 
         # Check OMML producible
@@ -260,10 +263,29 @@ def validate_docx(
 
     from ._version import __version__
 
+    backend = "python" if xsl_path is None else "office-xsl"
     report: dict[str, object] = {
+        "schema_version": 3,
+        "report_type": "validation",
         "mathfmt": __version__,
+        "command": {"name": "validate"},
+        "inputs": {
+            "docx": str(input_path.resolve()),
+            "review": str(review_path.resolve()) if review_path is not None else None,
+        },
+        "outputs": {},
+        "options": {
+            "backend": backend,
+            "xsl": str(xsl_path.resolve()) if xsl_path is not None else None,
+        },
+        "summary": {
+            "valid": True,
+            "errors": 0,
+            "warnings": 0,
+            "equations": 0,
+        },
         "input": str(input_path.resolve()),
-        "backend": "python" if xsl_path is None else "office-xsl",
+        "backend": backend,
         "valid": True,
         "package": {},
         "omml": {},
@@ -275,6 +297,12 @@ def validate_docx(
     except zipfile.BadZipFile:
         report["valid"] = False
         report["package"] = {"valid_zip": False}
+        report["summary"] = {
+            "valid": False,
+            "errors": 1,
+            "warnings": 0,
+            "equations": 0,
+        }
         return report
 
     report["package"] = _validate_package(input_path, parts)
@@ -306,5 +334,15 @@ def validate_docx(
         if cov.get("failures"):
             has_issues = True
     report["valid"] = not has_issues
+    structural_errors = oml.get("structural_errors", []) if isinstance(oml, dict) else []
+    structural_warnings = oml.get("structural_warnings", []) if isinstance(oml, dict) else []
+    coverage_failures = cov.get("failures", []) if isinstance(cov, dict) else []
+    equation_count = oml.get("equation_count", 0) if isinstance(oml, dict) else 0
+    report["summary"] = {
+        "valid": report["valid"],
+        "errors": len(structural_errors) + len(coverage_failures),
+        "warnings": len(structural_warnings),
+        "equations": equation_count,
+    }
 
     return report
