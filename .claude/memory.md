@@ -5,3 +5,4 @@
 - Caches for option-sensitive remote checks (for example stable-only versus prerelease updates) must include the option in the cache key or cached payload validation.
 - When adding an error field to a library result, also test the CLI exit code for that error path; displaying an error message while returning success still breaks CI callers.
 - After decoding cache JSON, validate that the root value is a mapping and that required values have usable types before calling mapping methods or doing arithmetic.
+- On Windows, isolated `python -m build` may fail while logging localized pip output with `UnicodeDecodeError`; retry with `PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`, and `python -m build --no-isolation` to verify packaging before treating it as a project build defect.
