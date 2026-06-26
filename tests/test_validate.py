@@ -173,6 +173,35 @@ def test_coverage_layer_with_review_passes_parseable_candidates(tmp_path: Path) 
     assert report["coverage"]["failures"] == []
 
 
+def test_coverage_layer_uses_linear_for_latex_delimited_candidates(tmp_path: Path) -> None:
+    source = make_docx(tmp_path / "latex.docx")
+    review = tmp_path / "candidates.json"
+    review.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {
+                        "id": "c1",
+                        "parse_status": "ok",
+                        "source": "$x^2 + 1$",
+                        "linear": "x^2 + 1",
+                        "part": "word/document.xml",
+                        "paragraph_index": 0,
+                        "start": 16,
+                        "end": 25,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    report = validate_docx(source, review_path=review)
+
+    assert report["coverage"]["parseable"] == 1
+    assert report["coverage"]["omml_produced"] == 1
+    assert report["coverage"]["failures"] == []
+
+
 def test_coverage_layer_flags_unparseable_candidates(tmp_path: Path) -> None:
     source = make_docx(tmp_path / "badcov.docx")
     review = tmp_path / "candidates.json"

@@ -205,6 +205,54 @@ def test_scan_records_empty_pict_and_unparseable_formula(tmp_path: Path) -> None
     assert report["candidates"][0]["parse_error_details"]["expected"]
 
 
+def test_scan_reports_latex_delimited_formulas(tmp_path: Path) -> None:
+    document = document_with_body(
+        """
+        <w:p><w:r><w:t>Inline formula $x^2 + 1$ in prose.</w:t></w:r></w:p>
+        <w:p><w:r><w:t>$$y = 2$$</w:t></w:r></w:p>
+        <w:p><w:r><w:t>The price is $12.00$ today.</w:t></w:r></w:p>
+        """
+    )
+    source = make_docx(tmp_path / "source.docx", document_xml=document)
+    report = scan_docx(source, tmp_path / "report.json")
+    candidates = [candidate for candidate in report["candidates"] if candidate["part"] == "word/document.xml"]
+
+    assert len(candidates) == 2
+    assert candidates[0]["source"] == "$x^2 + 1$"
+    assert candidates[0]["linear"] == "x^2 + 1"
+    assert candidates[0]["selected"] is True
+    assert candidates[0]["confidence_reason"] == "explicit LaTeX delimiter"
+    assert candidates[0]["explicit"] is True
+    assert candidates[0]["display"] is False
+    assert candidates[1]["source"] == "$$y = 2$$"
+    assert candidates[1]["linear"] == "y = 2"
+    assert candidates[1]["display"] is True
+
+
+def test_apply_latex_delimited_formulas_remove_delimiters(tmp_path: Path) -> None:
+    document = document_with_body(
+        """
+        <w:p><w:r><w:t>Inline formula $x^2 + 1$ in prose.</w:t></w:r></w:p>
+        <w:p><w:r><w:t>$$y = 2$$</w:t></w:r></w:p>
+        """
+    )
+    source = make_docx(tmp_path / "source.docx", document_xml=document)
+    review = tmp_path / "review.json"
+    output = tmp_path / "output.docx"
+    scan_docx(source, review)
+
+    result = apply_docx(source, review, output, tmp_path / "result.json", xsl_path=None)
+
+    assert result["converted_count"] == 2
+    with zipfile.ZipFile(output) as archive:
+        root = etree.fromstring(archive.read("word/document.xml"))
+    paragraphs = root.xpath(".//w:p", namespaces=NS)
+    assert "$" not in paragraph_text(paragraphs[0])
+    assert paragraph_text(paragraphs[0]) == "Inline formula  in prose."
+    assert paragraphs[0].xpath(".//m:oMath", namespaces=NS)
+    assert paragraphs[1].xpath("./m:oMathPara/m:oMath", namespaces=NS)
+
+
 def test_apply_preserves_mixed_text_across_runs(tmp_path: Path) -> None:
     document = document_with_body(
         """

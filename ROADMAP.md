@@ -73,6 +73,7 @@ but timelines are best-effort — this is a single-maintainer project.
 
 **Focus:** Handle more real-world formula patterns.
 
+- [x] LaTeX-style explicit delimiters: `$...$` and `$$...$$` in DOCX text
 - [ ] Nested bracketed constructs: `{ ... }` for explicit grouping
 - [ ] Multi-line equations and aligned environments (`align`, `cases`)
 - [ ] Chemical formulas and reaction arrows
@@ -84,7 +85,6 @@ but timelines are best-effort — this is a single-maintainer project.
 
 **Focus:** Work well in more environments and toolchains.
 
-- [ ] LaTeX input mode: `$...$` and `$$...$$` delimiters in DOCX text
 - [ ] WPS Office compatibility testing (WPS Writer on Windows/Linux)
 - [ ] LibreOffice Writer compatibility testing (ODT → DOCX roundtrip)
 - [ ] Batch processing: `mathfmt convert ./folder/*.docx`

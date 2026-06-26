@@ -70,10 +70,24 @@ This produces `candidates.json` containing every detected formula candidate:
       "source": "x^2 + 1 = 2",
       "linear": "x^2 + 1 = 2",
       "display": false,
+      "explicit": false,
       "paragraph_text": "Inline: x^2 + 1 = 2 and more text.",
       "parse_status": "ok"
     }
   ]
+}
+```
+
+If a formula is wrapped in LaTeX-style delimiters, the report keeps the exact DOCX
+text in `source` and strips the delimiters in `linear`:
+
+```json
+{
+  "source": "$x^2 + 1$",
+  "linear": "x^2 + 1",
+  "confidence": "high",
+  "confidence_reason": "explicit LaTeX delimiter",
+  "explicit": true
 }
 ```
 
@@ -88,6 +102,7 @@ Open `candidates.json` and for each candidate:
 | `selected` | Set to `true` to convert, `false` to skip |
 | `parse_status` | `"ok"` = parsable; `"review"` = failed, check `parse_error` |
 | `parse_error_details` | Structured parse location: column, nearby context, expected token, and found token when available |
+| `explicit` | `true` when detected from `$...$` or `$$...$$` delimiters |
 
 Common review actions:
 
@@ -202,7 +217,10 @@ mathfmt convert input.docx --output final.docx --report conversion.json
 | `summary.existing_equations` | Paragraphs that already contain native Word equations (skipped) |
 | `summary.drawing_paragraphs` | Paragraphs containing images or drawings (skipped) |
 | `summary.code_paragraphs` | Paragraphs identified as code (skipped) |
+| `candidates[].source` | Original DOCX text span; explicit formulas keep `$...$` or `$$...$$` here |
+| `candidates[].linear` | Parsed formula text; explicit formulas remove the delimiters here |
 | `candidates[].display` | `true` if the formula fills the entire paragraph (renders as display equation) |
+| `candidates[].explicit` | `true` when the candidate came from LaTeX-style delimiters |
 | `candidates[].parse_status` | `"ok"` or `"review"` (see above) |
 
 ### Apply report (`result.json`)
