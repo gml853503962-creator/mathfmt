@@ -166,6 +166,20 @@ Brackets must match: `(...)`, `[...]`, `{...}`. Brackets inside a fraction's num
 
 ## 5. Scanning Heuristics
 
+### Explicit LaTeX-style delimiters
+
+DOCX text can mark formulas explicitly:
+
+| Input in DOCX text | Scan `source` | Parsed `linear` | Display |
+|---|---|---|---|
+| `$x^2 + 1$` | `$x^2 + 1$` | `x^2 + 1` | `false` |
+| `$$y = 2$$` | `$$y = 2$$` | `y = 2` | `true` |
+
+Explicit delimiter candidates are treated as high-confidence formulas even when the
+inner formula has no heuristic anchor operator. During `apply`, MathFmt removes the
+delimiters and inserts only the native Word equation. Simple currency-like spans such
+as `$12.00$` are ignored.
+
 Formulas are detected by walking character runs. A span must satisfy **all** of:
 
 1. **Character whitelist**: every character in `"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789₀₁₂₃₄₅₆₇₈₉ₚᵥₜ⁰¹²³⁴⁵⁶⁷⁸⁹+-*/^=<>!...()[]{}.,"` (full list in `MATH_CHARS` in `core.py`).

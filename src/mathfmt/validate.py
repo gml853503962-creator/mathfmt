@@ -159,6 +159,7 @@ def _validate_coverage(
 
     for candidate in ok_candidates:
         source = str(candidate.get("source", ""))
+        linear = str(candidate.get("linear", source))
         part_name = str(candidate.get("part", ""))
         raw = parts.get(part_name)
 
@@ -179,11 +180,11 @@ def _validate_coverage(
 
         # Check parseable
         try:
-            mathml = formula_to_mathml(source)
+            mathml = formula_to_mathml(linear)
             result["parseable"] += 1
         except FormulaError as exc:
             result["failures"].append(
-                {"source": source, "error": str(exc), "error_details": _error_details(exc)}
+                {"source": source, "linear": linear, "error": str(exc), "error_details": _error_details(exc)}
             )
             continue
 
@@ -219,8 +220,9 @@ def _validate_cross_backend(
 
     for candidate in ok[:20]:  # sample cap
         source = str(candidate.get("source", ""))
+        linear = str(candidate.get("linear", source))
         try:
-            mathml = formula_to_mathml(source)
+            mathml = formula_to_mathml(linear)
         except FormulaError:
             continue
 
@@ -228,7 +230,7 @@ def _validate_cross_backend(
             xsl_omath = _mathml_to_omml_xsl(mathml, transform)
             py_omath = mathml_to_omml_py(mathml)
         except Exception as exc:
-            divergences.append({"source": source, "error": str(exc)})
+            divergences.append({"source": source, "linear": linear, "error": str(exc)})
             continue
 
         xsl_count = _tag_signature(xsl_omath)

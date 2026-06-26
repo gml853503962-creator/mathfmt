@@ -97,6 +97,16 @@ class Node:
     meta: dict[str, str] | None = None
 
 
+@dataclass(frozen=True)
+class CandidateSpan:
+    start: int
+    end: int
+    source: str
+    linear: str | None = None
+    display: bool = False
+    explicit: bool = False
+
+
 class FormulaError(ValueError):
     def __init__(
         self,
@@ -723,20 +733,75 @@ def math_score(source: str) -> int:
 _STEP_RE = re.compile(r"(?<!\w)(?:1|Γ)\(t\)(?!\w)")
 
 
-def candidate_runs(text: str) -> list[tuple[int, int, str]]:
-    candidates: list[tuple[int, int, str]] = []
+def _looks_like_currency(text: str) -> bool:
+    return bool(re.fullmatch(r"\s*\d+(?:[.,]\d{2})?\s*", text))
+
+
+def _latex_delimited_spans(text: str) -> list[CandidateSpan]:
+    spans: list[CandidateSpan] = []
+    claimed: list[tuple[int, int]] = []
+    index = 0
+
+    while index < len(text):
+        if text.startswith("$$", index):
+            end = text.find("$$", index + 2)
+            if end == -1:
+                index += 2
+                continue
+            span_end = end + 2
+            inner = text[index + 2 : end].strip()
+            if inner:
+                spans.append(CandidateSpan(index, span_end, text[index:span_end], inner, True, True))
+                claimed.append((index, span_end))
+            index = span_end
+            continue
+
+        if text[index] == "$" and not any(start <= index < end for start, end in claimed):
+            if index + 1 < len(text) and text[index + 1] == "$":
+                index += 1
+                continue
+            end = text.find("$", index + 1)
+            if end == -1:
+                index += 1
+                continue
+            span_end = end + 1
+            inner = text[index + 1 : end].strip()
+            if inner and not _looks_like_currency(inner):
+                spans.append(CandidateSpan(index, span_end, text[index:span_end], inner, False, True))
+                claimed.append((index, span_end))
+            index = span_end
+            continue
+
+        index += 1
+
+    return spans
+
+
+def candidate_spans(text: str) -> list[CandidateSpan]:
+    candidates: list[CandidateSpan] = []
+
+    latex_spans = _latex_delimited_spans(text)
+    candidates.extend(latex_spans)
+    latex_ranges = [(span.start, span.end) for span in latex_spans]
 
     # Detect step function 1(t) / Γ(t) with exact pattern before general scan
     step_spans: set[tuple[int, int]] = set()
     for match in _STEP_RE.finditer(text):
+        if any(start <= match.start() and match.end() <= end for start, end in latex_ranges):
+            continue
         step_spans.add((match.start(), match.end()))
-        candidates.append((match.start(), match.end(), match.group()))
+        candidates.append(CandidateSpan(match.start(), match.end(), match.group()))
 
     index = 0
     while index < len(text):
+        # Skip spans already claimed by explicit LaTeX delimiter detector
+        while any(s <= index < e for s, e in latex_ranges):
+            index = next(e for s, e in latex_ranges if s <= index < e)
         # Skip spans already claimed by step-function detector
         while any(s <= index < e for s, e in step_spans):
             index = next(e for s, e in step_spans if s <= index < e)
+        if index >= len(text):
+            break
         if text[index] not in MATH_CHARS:
             index += 1
             continue
@@ -766,12 +831,16 @@ def candidate_runs(text: str) -> list[tuple[int, int, str]]:
         start = text.find(source, start, end)
         end = start + len(source)
         if source and start >= 0:
-            candidates.append((start, end, source))
-    deduped: list[tuple[int, int, str]] = []
+            candidates.append(CandidateSpan(start, end, source))
+    deduped: list[CandidateSpan] = []
     for item in candidates:
-        if not deduped or item[:2] != deduped[-1][:2]:
+        if not deduped or (item.start, item.end) != (deduped[-1].start, deduped[-1].end):
             deduped.append(item)
     return deduped
+
+
+def candidate_runs(text: str) -> list[tuple[int, int, str]]:
+    return [(span.start, span.end, span.source) for span in candidate_spans(text)]
 
 
 def inspect_docx(input_path: Path) -> tuple[list[zipfile.ZipInfo], dict[str, bytes]]:
@@ -823,13 +892,18 @@ def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
             if likely_code(text):
                 summary["code_paragraphs"] += 1
                 continue
-            for start, end, source in candidate_runs(text):
+            for span in candidate_spans(text):
                 candidate_id = f"f{len(candidates) + 1:04d}"
-                display = text.strip() == source.strip()
-                score = math_score(source)
-                has_relation = bool(re.search(r"[=≠≤≥≈→⇒]", source))
-                has_func = bool(re.search(r"\([^)]*\)", source))
-                if score >= 8 and has_relation:
+                start, end, source = span.start, span.end, span.source
+                linear = span.linear or source
+                display = span.display or text.strip() == source.strip()
+                score = math_score(linear)
+                has_relation = bool(re.search(r"[=≠≤≥≈→⇒]", linear))
+                has_func = bool(re.search(r"\([^)]*\)", linear))
+                if span.explicit:
+                    confidence = "high"
+                    reason = "explicit LaTeX delimiter"
+                elif score >= 8 and has_relation:
                     confidence = "high"
                     reason = "strong formula signal"
                 elif score >= 6 or (score >= 4 and (has_relation or has_func)):
@@ -847,14 +921,15 @@ def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
                     "start": start,
                     "end": end,
                     "source": source,
-                    "linear": source,
+                    "linear": linear,
                     "display": display,
                     "paragraph_text": text,
                     "confidence": confidence,
                     "confidence_reason": reason,
+                    "explicit": span.explicit,
                 }
                 try:
-                    formula_to_mathml(source)
+                    formula_to_mathml(linear)
                     candidate["parse_status"] = "ok"
                 except Exception as exc:
                     candidate["selected"] = False

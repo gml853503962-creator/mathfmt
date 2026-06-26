@@ -2,6 +2,18 @@
 
 All notable changes to MathFmt are documented here.
 
+## [Unreleased]
+
+### Added
+- LaTeX-style DOCX text delimiters: `$...$` scans as a high-confidence inline
+  formula, and `$$...$$` scans as a high-confidence display formula.
+- Scan reports now include `explicit: true` for delimiter-detected formulas while
+  preserving delimiter text in `source` and parsing delimiter-free `linear`.
+
+### Fixed
+- Validation coverage now parses reviewed candidates through `linear` when present,
+  so delimiter-detected formulas validate consistently with `apply`.
+
 ## [0.3.0] - 2026-06-25
 
 ### Added

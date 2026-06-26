@@ -11,6 +11,7 @@ from mathfmt.core import (
     FormulaError,
     Node,
     candidate_runs,
+    candidate_spans,
     estimated_formula_width,
     formula_to_mathml,
     likely_code,
@@ -134,6 +135,26 @@ def test_candidate_boundaries_and_low_score_text() -> None:
     assert candidates
     assert candidates[0][2].endswith("= 2")
     assert candidate_runs("ordinary prose") == []
+
+
+def test_latex_delimited_candidate_spans() -> None:
+    spans = candidate_spans("Inline $x^2 + 1$ and display $$y = 2$$.")
+
+    assert [(span.source, span.linear, span.display, span.explicit) for span in spans] == [
+        ("$x^2 + 1$", "x^2 + 1", False, True),
+        ("$$y = 2$$", "y = 2", True, True),
+    ]
+
+
+def test_latex_delimiter_scan_ignores_simple_currency() -> None:
+    assert candidate_runs("The price is $12.00$ today.") == []
+
+
+def test_latex_delimited_span_at_end_is_safe() -> None:
+    spans = candidate_spans("Ends with $x + 1$")
+
+    assert spans[-1].source == "$x + 1$"
+    assert spans[-1].linear == "x + 1"
 
 
 def test_table_line_splitting_respects_groups_and_unary_signs() -> None:
