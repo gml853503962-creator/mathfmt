@@ -20,6 +20,7 @@ from mathfmt.core import (
     qname,
     run_with_text_like,
     set_math_font_size,
+    split_multiline_formula,
     split_top_level_additive,
     tokenize,
 )
@@ -155,6 +156,17 @@ def test_latex_delimited_span_at_end_is_safe() -> None:
 
     assert spans[-1].source == "$x + 1$"
     assert spans[-1].linear == "x + 1"
+
+
+def test_multiline_formula_splits_latex_and_real_line_breaks() -> None:
+    assert split_multiline_formula(r"a = b \\ c = d") == ["a = b", "c = d"]
+    assert split_multiline_formula("a = b\nc = d") == ["a = b", "c = d"]
+    assert split_multiline_formula("a / b") == ["a / b"]
+
+
+def test_multiline_formula_rejects_empty_lines() -> None:
+    with pytest.raises(FormulaError, match="empty line"):
+        split_multiline_formula("a = b\n\nc = d")
 
 
 def test_table_line_splitting_respects_groups_and_unary_signs() -> None:

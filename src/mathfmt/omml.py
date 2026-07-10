@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+import copy
+from collections.abc import Sequence
+
 from lxml import etree
 
 M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
@@ -32,11 +35,63 @@ MATHML_TAGS = {
 }
 
 
+RELATION_SYMBOLS = ("=", "≤", "≥", "≠", "≈", "→", "⇒", "<", ">")
+
+
 def mathml_to_omml_py(math_elem: etree._Element) -> etree._Element:
     omath = etree.Element(qname(M_NS, "oMath"))
     for child in math_elem:
         _convert(child, omath)
     return omath
+
+
+def combine_equation_array(equations: Sequence[etree._Element]) -> etree._Element:
+    """Combine line-level ``m:oMath`` elements into one native equation array."""
+    if len(equations) < 2:
+        raise ValueError("An equation array requires at least two lines")
+
+    omath = etree.Element(qname(M_NS, "oMath"))
+    equation_array = etree.SubElement(omath, qname(M_NS, "eqArr"))
+    for equation in equations:
+        line = etree.SubElement(equation_array, qname(M_NS, "e"))
+        for child in equation:
+            line.append(copy.deepcopy(child))
+        _insert_relation_alignment_marker(line)
+    return omath
+
+
+def _insert_relation_alignment_marker(line: etree._Element) -> None:
+    """Align equation-array rows at their first top-level relation symbol."""
+    for index, child in enumerate(list(line)):
+        if child.tag != qname(M_NS, "r"):
+            continue
+        text_node = child.find(qname(M_NS, "t"))
+        text = text_node.text if text_node is not None else None
+        if not text:
+            continue
+        positions = [text.find(symbol) for symbol in RELATION_SYMBOLS if symbol in text]
+        if not positions:
+            continue
+        position = min(positions)
+        marker = etree.Element(qname(M_NS, "r"))
+        marker_text = etree.SubElement(marker, qname(M_NS, "t"))
+        marker_text.text = "&"
+        if position == 0:
+            line.insert(index, marker)
+            return
+
+        left = copy.deepcopy(child)
+        right = copy.deepcopy(child)
+        left_text = left.find(qname(M_NS, "t"))
+        right_text = right.find(qname(M_NS, "t"))
+        assert left_text is not None and right_text is not None
+        left_text.text = text[:position]
+        right_text.text = text[position:]
+        line.remove(child)
+        line.insert(index, left)
+        line.insert(index + 1, marker)
+        line.insert(index + 2, right)
+        return
 
 
 def _convert(elem: etree._Element, parent: etree._Element) -> None:

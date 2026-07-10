@@ -15,7 +15,7 @@ from pathlib import Path
 from lxml import etree
 
 from ._version import __version__
-from .omml import mathml_to_omml_py
+from .omml import combine_equation_array, mathml_to_omml_py
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
@@ -663,6 +663,17 @@ def formula_to_mathml(source: str) -> etree._Element:
     return root
 
 
+def split_multiline_formula(source: str) -> list[str]:
+    """Split reviewed formula text on LaTeX ``\\\\`` or real line breaks."""
+    lines = re.split(r"\\\\|\r\n?|\n", source)
+    if len(lines) == 1:
+        return [source]
+    stripped = [line.strip() for line in lines]
+    if any(not line for line in stripped):
+        raise FormulaError("Multiline formula contains an empty line", source=source)
+    return stripped
+
+
 def find_xsl(explicit: Path | None = None) -> Path:
     if explicit is not None and not explicit.is_file():
         raise FileNotFoundError(f"MML2OMML.XSL was not found at: {explicit}")
@@ -929,7 +940,11 @@ def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
                     "explicit": span.explicit,
                 }
                 try:
-                    formula_to_mathml(linear)
+                    formula_lines = split_multiline_formula(linear)
+                    for formula_line in formula_lines:
+                        formula_to_mathml(formula_line)
+                    candidate["multiline"] = len(formula_lines) > 1
+                    candidate["line_count"] = len(formula_lines)
                     candidate["parse_status"] = "ok"
                 except Exception as exc:
                     candidate["selected"] = False
@@ -1091,6 +1106,7 @@ def _formula_report_item(
     status: str,
     message: str | None = None,
     lines: int | None = None,
+    layout: str | None = None,
     error_details: dict[str, object] | None = None,
     warning_code: str | None = None,
 ) -> dict[str, object]:
@@ -1105,6 +1121,9 @@ def _formula_report_item(
     }
     if lines is not None:
         item["lines"] = lines
+        item["multiline"] = lines > 1
+    if layout is not None:
+        item["layout"] = layout
     if message:
         key = "error" if status in {"failed", "skipped"} else "message"
         item[key] = message
@@ -1261,16 +1280,31 @@ def apply_docx(
                 is_display = bool(candidate.get("display")) and source.strip() == original_text.strip()
                 outside_formula = original_text[:start] + original_text[end:]
                 covers_formula_paragraph = not outside_formula.strip(TRIM_PUNCT)
-                table_lines = (
-                    split_top_level_additive(linear)
-                    if in_table and covers_formula_paragraph and estimated_formula_width(linear) > 65
-                    else [linear]
-                )
-                equations = [mathml_to_omml(formula_to_mathml(line), transform) for line in table_lines]
+                reviewed_lines = split_multiline_formula(linear)
+                explicit_multiline = len(reviewed_lines) > 1
+                table_lines = reviewed_lines
+                if (
+                    not explicit_multiline
+                    and in_table
+                    and covers_formula_paragraph
+                    and estimated_formula_width(linear) > 65
+                ):
+                    table_lines = split_top_level_additive(linear)
+                line_equations = [mathml_to_omml(formula_to_mathml(line), transform) for line in table_lines]
+                if explicit_multiline:
+                    equations = [combine_equation_array(line_equations)]
+                    layout = "equation_array"
+                else:
+                    equations = line_equations
+                    layout = "line_breaks" if len(equations) > 1 else "single"
                 if in_table:
                     for equation in equations:
                         set_math_font_size(equation, 16)
-                if len(equations) > 1:
+                if explicit_multiline and is_display:
+                    replace_display_paragraph(paragraph, equations[0])
+                elif explicit_multiline:
+                    replace_inline_span(paragraph, start, end, equations[0])
+                elif len(equations) > 1:
                     replace_multiline_table_formula(paragraph, equations, original_text[end:])
                 elif is_display:
                     omath = equations[0]
@@ -1278,10 +1312,24 @@ def apply_docx(
                 else:
                     omath = equations[0]
                     replace_inline_span(paragraph, start, end, omath)
+                line_count = len(table_lines)
                 converted.append(
-                    {"id": candidate.get("id"), "source": source, "part": part_name, "lines": len(equations)}
+                    {
+                        "id": candidate.get("id"),
+                        "source": source,
+                        "part": part_name,
+                        "lines": line_count,
+                        "layout": layout,
+                    }
                 )
-                formulas.append(_formula_report_item(candidate, status="converted", lines=len(equations)))
+                formulas.append(
+                    _formula_report_item(
+                        candidate,
+                        status="converted",
+                        lines=line_count,
+                        layout=layout,
+                    )
+                )
             except Exception as exc:
                 error = str(exc)
                 skipped.append({"id": candidate.get("id"), "source": candidate.get("source"), "error": error})

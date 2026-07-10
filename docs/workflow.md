@@ -71,6 +71,8 @@ This produces `candidates.json` containing every detected formula candidate:
       "linear": "x^2 + 1 = 2",
       "display": false,
       "explicit": false,
+      "multiline": false,
+      "line_count": 1,
       "paragraph_text": "Inline: x^2 + 1 = 2 and more text.",
       "parse_status": "ok"
     }
@@ -91,6 +93,20 @@ text in `source` and strips the delimiters in `linear`:
 }
 ```
 
+To create an aligned multiline equation, edit `linear` during review while keeping
+`source` and its character span unchanged:
+
+```json
+{
+  "source": "a = b",
+  "linear": "a = b \\\\ c = d",
+  "multiline": true,
+  "line_count": 2
+}
+```
+
+An actual line break may be used instead of `\\`. Each line must be a valid formula.
+
 ### Step 2 — Review
 
 Open `candidates.json` and for each candidate:
@@ -103,6 +119,8 @@ Open `candidates.json` and for each candidate:
 | `parse_status` | `"ok"` = parsable; `"review"` = failed, check `parse_error` |
 | `parse_error_details` | Structured parse location: column, nearby context, expected token, and found token when available |
 | `explicit` | `true` when detected from `$...$` or `$$...$$` delimiters |
+| `multiline` | `true` when `linear` contains two or more reviewed formula lines |
+| `line_count` | Number of reviewed formula lines |
 
 Common review actions:
 
@@ -157,6 +175,9 @@ Normal apply writes `result.docx` with native Word equations and `result.json` w
       "source": "x^2 + 1 = 2",
       "linear": "x^2 + 1 = 2",
       "confidence": "high",
+      "lines": 1,
+      "multiline": false,
+      "layout": "single",
       "location": {"part": "word/document.xml", "paragraph_index": 3, "start": 10, "end": 20}
     }
   ],
@@ -221,6 +242,8 @@ mathfmt convert input.docx --output final.docx --report conversion.json
 | `candidates[].linear` | Parsed formula text; explicit formulas remove the delimiters here |
 | `candidates[].display` | `true` if the formula fills the entire paragraph (renders as display equation) |
 | `candidates[].explicit` | `true` when the candidate came from LaTeX-style delimiters |
+| `candidates[].multiline` | Whether `linear` contains multiple reviewed formula lines |
+| `candidates[].line_count` | Number of reviewed formula lines |
 | `candidates[].parse_status` | `"ok"` or `"review"` (see above) |
 
 ### Apply report (`result.json`)
@@ -237,11 +260,14 @@ mathfmt convert input.docx --output final.docx --report conversion.json
 | `formulas[].status` | Per-formula result: `"converted"`, `"skipped"`, or `"failed"` |
 | `formulas[].location` | DOCX part, paragraph index, and character span |
 | `formulas[].confidence` | Per-formula confidence copied from the review report |
+| `formulas[].lines` | Number of converted formula lines |
+| `formulas[].multiline` | Whether the converted formula contains multiple lines |
+| `formulas[].layout` | `"single"`, `"equation_array"`, or legacy table `"line_breaks"` |
 | `formulas[].warnings` | Manual-review warnings such as failed conversion or stale location |
 | `formulas[].error_details` | Structured parser details such as column, context, expected token, and found token |
 | `converted_count` | Formulas successfully converted |
 | `skipped_count` | Formulas that could not be converted |
-| `converted[].lines` | Number of equation lines (1 normally; >1 for split long table formulas) |
+| `converted[].lines` | Number of equation lines (1 normally; >1 for aligned or split table formulas) |
 | `skipped[].error` | Reason for skipping |
 
 The legacy `converted_count`, `skipped_count`, `converted`, and `skipped` fields remain

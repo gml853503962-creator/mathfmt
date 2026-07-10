@@ -253,6 +253,94 @@ def test_apply_latex_delimited_formulas_remove_delimiters(tmp_path: Path) -> Non
     assert paragraphs[1].xpath("./m:oMathPara/m:oMath", namespaces=NS)
 
 
+def test_scan_accepts_multiline_latex_delimited_formula(tmp_path: Path) -> None:
+    formula = r"$$a = b \\ c = d$$"
+    document = document_with_body(f"<w:p><w:r><w:t>{formula}</w:t></w:r></w:p>")
+    source = make_docx(tmp_path / "source.docx", document_xml=document)
+
+    report = scan_docx(source, tmp_path / "report.json")
+    candidate = next(c for c in report["candidates"] if c["part"] == "word/document.xml")
+
+    assert candidate["parse_status"] == "ok"
+    assert candidate["selected"] is True
+    assert candidate["multiline"] is True
+    assert candidate["line_count"] == 2
+
+
+def test_apply_multiline_formulas_in_inline_display_and_table_contexts(tmp_path: Path) -> None:
+    document = document_with_body(
+        """
+        <w:p><w:r><w:t>Before a = b after</w:t></w:r></w:p>
+        <w:p><w:r><w:t>x = y</w:t></w:r></w:p>
+        <w:tbl><w:tr><w:tc><w:p><w:r><w:t>m = n</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+        """
+    )
+    source = make_docx(tmp_path / "source.docx", document_xml=document)
+    review = tmp_path / "review.json"
+    review.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {
+                        "id": "inline",
+                        "selected": True,
+                        "part": "word/document.xml",
+                        "paragraph_index": 0,
+                        "start": 7,
+                        "end": 12,
+                        "source": "a = b",
+                        "linear": r"a = b \\ c = d",
+                        "display": False,
+                    },
+                    {
+                        "id": "display",
+                        "selected": True,
+                        "part": "word/document.xml",
+                        "paragraph_index": 1,
+                        "start": 0,
+                        "end": 5,
+                        "source": "x = y",
+                        "linear": "x = y\nz = w",
+                        "display": True,
+                    },
+                    {
+                        "id": "table",
+                        "selected": True,
+                        "part": "word/document.xml",
+                        "paragraph_index": 2,
+                        "start": 0,
+                        "end": 5,
+                        "source": "m = n",
+                        "linear": r"m = n \\ p = q",
+                        "display": False,
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "output.docx"
+
+    result = apply_docx(source, review, output, tmp_path / "result.json", xsl_path=None)
+
+    assert result["converted_count"] == 3
+    assert {item["layout"] for item in result["converted"]} == {"equation_array"}
+    assert {item["lines"] for item in result["converted"]} == {2}
+    assert all(item["multiline"] for item in result["formulas"])
+    with zipfile.ZipFile(output) as archive:
+        root = etree.fromstring(archive.read("word/document.xml"))
+    arrays = root.xpath(".//m:eqArr", namespaces=NS)
+    assert len(arrays) == 3
+    assert all(len(array.xpath("./m:e", namespaces=NS)) == 2 for array in arrays)
+    paragraphs = root.xpath(".//w:p", namespaces=NS)
+    assert paragraph_text(paragraphs[0]) == "Before  after"
+    assert paragraphs[0].xpath("./m:oMath/m:eqArr", namespaces=NS)
+    assert paragraphs[1].xpath("./m:oMathPara/m:oMath/m:eqArr", namespaces=NS)
+    assert paragraphs[2].xpath("ancestor::w:tc", namespaces=NS)
+    assert paragraphs[2].xpath("./m:oMath/m:eqArr", namespaces=NS)
+    assert paragraphs[2].xpath(".//w:sz[@w:val='16']", namespaces=NS)
+
+
 def test_apply_preserves_mixed_text_across_runs(tmp_path: Path) -> None:
     document = document_with_body(
         """
