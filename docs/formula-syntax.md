@@ -85,6 +85,8 @@ OP      : <= | >= | != | ~= | -> | => | +/- | [+−*/^=<>±≠≤≥≈→⇒·�
 LPAREN  : ( [ {
 RPAREN  : ) ] }
 COMMA   : ,
+IF      : if
+SEMI    : ;
 ```
 
 Whitespace between tokens is ignored.
@@ -139,6 +141,20 @@ derivative → DERV{N}                            // injected by preprocessor
 
 Brackets must match: `(...)`, `[...]`, `{...}`. Brackets inside a fraction's numerator/denominator are stripped from the MathML output (e.g. `(a+b)/(c-d)` renders without the literal parentheses).
 
+### Piecewise and cases notation
+
+Two equivalent forms are supported:
+
+| Form | Example |
+|---|---|
+| Compact brace syntax | `f(x) = {0, x<0; 1, x>=0}` |
+| Explicit cases syntax | `cases(0 if x<0; 1 if x>=0)` |
+
+Each branch requires exactly one expression and one condition. Semicolons separate
+branches. The result is a left brace with a two-column table: expressions on the
+left and `if` conditions on the right. Errors identify the failing branch and whether
+`if`, a condition, or a `;`/`)` separator is missing.
+
 ---
 
 ## 4. MathML Output Mapping
@@ -161,6 +177,7 @@ Brackets must match: `(...)`, `[...]`, `{...}`. Brackets inside a fraction's num
 | `binary` `*` or `implicit` | `m:mrow` with invisible-times `m:mo` (U+2062) |
 | `binary` `+` `−` `=` `→` etc. | `m:mrow(left, m:mo(op), right)` |
 | `sequence` `a, b, c` | `m:mrow` with `m:mo(,)` separators |
+| `piecewise` / `cases` | Open-brace `m:mfenced` containing a two-column `m:mtable` |
 
 ---
 
@@ -233,7 +250,6 @@ Candidates are cleaned by removing:
 | Summation | `∑_{i=1}^{n} x_i` | `test_summation_notation` (xfail) |
 | Matrix | `[[a,b],[c,d]]` | `test_matrix_notation` (xfail) |
 | Vector | `[x, y, z]` | `test_vector_notation` (xfail) |
-| Piecewise/cases | `f(x) = {0, x<0; 1, x>=0}` | `test_piecewise_notation` (xfail) |
 | `lim_{x→0}` (subscript) | `lim_{x→0}` (use `lim(x->0)`) | `test_limit_subscript_notation` (xfail) |
 
 ### Heuristic limitations

@@ -10,3 +10,5 @@
 - When a scan report distinguishes original `source` from parser-ready `linear`, update apply, validate, and cross-backend checks to parse `linear`; otherwise features such as delimiter stripping can convert successfully but fail validation.
 - When one reviewed formula can contain multiple parse units, split it consistently in scan, apply, validation, and cross-backend checks; keep coverage counts candidate-based, then assemble the final layout only during apply.
 - Use the exact skill locator shown in the available-skills catalog; plugin cache families such as `openai-curated-remote` and `openai-bundled` are not interchangeable.
+- When a grammar keyword separates two expressions (for example `if` in cases syntax), tokenize it before the generic identifier rule; otherwise implicit multiplication can consume it and make branch-level errors impossible to diagnose.
+- If an explicit formula delimiter appears inside text that otherwise resembles code, scan only the explicit spans instead of disabling code exclusion for the whole paragraph.

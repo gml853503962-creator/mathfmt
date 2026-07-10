@@ -58,6 +58,10 @@ Reviewed formulas can span multiple aligned lines. Put `\\` or a real line break
 the candidate's `linear` value, for example `a = b \\ c = d`; MathFmt creates one
 native Word equation array and aligns the rows at their first relation symbol.
 
+Piecewise formulas support both `f(x) = {0, x<0; 1, x>=0}` and
+`cases(0 if x<0; 1 if x>=0)`. Both render as a native Word expression with a left
+brace and aligned expression/condition columns.
+
 ---
 
 ## Status
@@ -227,7 +231,7 @@ pip install --upgrade mathfmt
 | **0.2.2** (2026-06-21) | CI/Ruff fixes; cache crash fix; exit code correction; validate version |
 | **0.2.3** (2026-06-22) | Parser fixes (ellipsis, factorial, n-ary, 1(t), x_bar, boundary); depth validation; docs & examples |
 | **0.3.0** (2026-06-25) | Structured conversion reports; dry-run preview; strict mode; failed-formula warnings; better errors |
-| **0.4.0** (planned) | Formula coverage improvements, including explicit LaTeX delimiters and aligned multiline equations |
+| **0.4.0** (planned) | Formula coverage improvements, including LaTeX delimiters, aligned multiline equations, and piecewise cases |
 | **1.0.0** (2027) | Stable API; long-term support |
 
 ### Further Reading

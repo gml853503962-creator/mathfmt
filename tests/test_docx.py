@@ -253,6 +253,37 @@ def test_apply_latex_delimited_formulas_remove_delimiters(tmp_path: Path) -> Non
     assert paragraphs[1].xpath("./m:oMathPara/m:oMath", namespaces=NS)
 
 
+def test_scan_and_apply_piecewise_formulas_in_inline_and_display_contexts(tmp_path: Path) -> None:
+    document = document_with_body(
+        """
+        <w:p><w:r><w:t>Function: $f(x) = {0, x&lt;0; 1, x>=0}$ done.</w:t></w:r></w:p>
+        <w:p><w:r><w:t>$$cases(0 if x&lt;0; 1 if x>=0)$$</w:t></w:r></w:p>
+        """
+    )
+    source = make_docx(tmp_path / "source.docx", document_xml=document)
+    review = tmp_path / "review.json"
+    output = tmp_path / "output.docx"
+
+    report = scan_docx(source, review)
+    candidates = [candidate for candidate in report["candidates"] if candidate["part"] == "word/document.xml"]
+
+    assert len(candidates) == 2
+    assert all(candidate["parse_status"] == "ok" for candidate in candidates)
+    assert all(candidate["selected"] for candidate in candidates)
+    result = apply_docx(source, review, output, tmp_path / "result.json", xsl_path=None)
+    assert result["converted_count"] == 2
+
+    with zipfile.ZipFile(output) as archive:
+        root = etree.fromstring(archive.read("word/document.xml"))
+    paragraphs = root.xpath(".//w:p", namespaces=NS)
+    assert paragraph_text(paragraphs[0]) == "Function:  done."
+    assert paragraphs[0].xpath("./m:oMath/m:d/m:e/m:m", namespaces=NS)
+    assert paragraphs[1].xpath("./m:oMathPara/m:oMath/m:d/m:e/m:m", namespaces=NS)
+    rows = root.xpath(".//m:d/m:e/m:m/m:mr", namespaces=NS)
+    assert len(rows) == 4
+    assert all(len(row.xpath("./m:e", namespaces=NS)) == 2 for row in rows)
+
+
 def test_scan_accepts_multiline_latex_delimited_formula(tmp_path: Path) -> None:
     formula = r"$$a = b \\ c = d$$"
     document = document_with_body(f"<w:p><w:r><w:t>{formula}</w:t></w:r></w:p>")

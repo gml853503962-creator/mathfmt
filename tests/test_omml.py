@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from lxml import etree
 
 from mathfmt.core import M_NS, formula_to_mathml, qname
@@ -153,6 +154,27 @@ def test_equation_array_preserves_structured_math() -> None:
 
     assert array.xpath("boolean(.//m:eqArr/m:e/m:f)", namespaces={"m": M_NS})
     assert array.xpath("boolean(.//m:eqArr/m:e/m:sSup)", namespaces={"m": M_NS})
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "f(x) = {0, x<0; 1, x>=0}",
+        "cases(0 if x<0; 1 if x>=0)",
+    ],
+)
+def test_piecewise_produces_open_delimiter_and_two_column_matrix(source: str) -> None:
+    omath = omath_for(source)
+    delimiters = omath.xpath(".//m:d[m:dPr/m:begChr[@m:val='{']]", namespaces={"m": M_NS})
+    delimiter = delimiters[0] if delimiters else None
+
+    assert delimiter is not None
+    assert delimiter.find("./m:dPr/m:begChr", namespaces={"m": M_NS}).get(qname(M_NS, "val")) == "{"
+    assert delimiter.find("./m:dPr/m:endChr", namespaces={"m": M_NS}).get(qname(M_NS, "val")) == ""
+    rows = delimiter.xpath(".//m:m/m:mr", namespaces={"m": M_NS})
+    assert len(rows) == 2
+    assert all(len(row.xpath("./m:e", namespaces={"m": M_NS})) == 2 for row in rows)
+    assert "if " in "".join(delimiter.itertext())
 
 
 def test_variable_with_numeric_suffix_is_subscript() -> None:
