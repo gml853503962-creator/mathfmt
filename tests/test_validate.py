@@ -38,6 +38,19 @@ def test_valid_docx_passes_validation(tmp_path: Path) -> None:
     assert pkg.get("paragraphs", 0) > 0
 
 
+def test_piecewise_omml_passes_structure_validation(tmp_path: Path) -> None:
+    source = make_docx_with_omml(
+        tmp_path / "piecewise.docx",
+        content=f"<w:p>{omath_for('cases(0 if x<0; 1 if x>=0)')}</w:p>",
+    )
+
+    report = validate_docx(source)
+
+    assert report["valid"] is True
+    assert report["omml"]["equation_count"] == 1
+    assert report["omml"]["structural_errors"] == []
+
+
 def test_validate_report_uses_v3_top_level_schema(tmp_path: Path) -> None:
     source = make_docx(tmp_path / "source.docx")
     report = validate_docx(source)
@@ -372,6 +385,15 @@ def test_cross_backend_structure_comparison(tmp_path: Path) -> None:
                         "paragraph_index": 0,
                         "start": 0,
                         "end": 12,
+                    },
+                    {
+                        "id": "x4",
+                        "parse_status": "ok",
+                        "source": "cases(0 if x<0; 1 if x>=0)",
+                        "part": "word/document.xml",
+                        "paragraph_index": 0,
+                        "start": 0,
+                        "end": 31,
                     },
                 ]
             }

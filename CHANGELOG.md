@@ -13,12 +13,19 @@ All notable changes to MathFmt are documented here.
   row order, and render as native Word `m:eqArr` equation arrays aligned at their
   first relation symbol.
 - Scan and conversion reports include multiline line counts and layout metadata.
+- Piecewise formulas support both `{expression, condition; ...}` and
+  `cases(expression if condition; ...)`, rendering as a native Word left brace with
+  aligned expression and condition columns.
 
 ### Fixed
 - Validation coverage now parses reviewed candidates through `linear` when present,
   so delimiter-detected formulas validate consistently with `apply`.
 - Multiline validation parses and compares every reviewed line while keeping
   candidate-level coverage counts stable.
+- Cases parser errors identify the failing branch and missing `if`, condition, or
+  branch separator.
+- Explicit `$...$` and `$$...$$` candidates remain scannable when their semicolon
+  syntax would otherwise resemble a code paragraph.
 
 ## [0.3.0] - 2026-06-25
 

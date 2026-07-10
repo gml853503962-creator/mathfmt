@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from lxml import etree
 
-from mathfmt.core import MML_NS, formula_to_mathml, preprocess_formula
+from mathfmt.core import MML_NS, FormulaError, formula_to_mathml, preprocess_formula
 
 
 def tags(source: str) -> set[str]:
@@ -71,7 +71,36 @@ def test_vector_notation() -> None:
 def test_piecewise_notation() -> None:
     root = formula_to_mathml("f(x) = {0, x<0; 1, x>=0}")
     tags = {etree.QName(e).localname for e in root.iter()}
-    assert "piecewise" in tags or "mfenced" in tags
+    assert {"mfenced", "mtable", "mtr", "mtd"} <= tags
+    fenced = root.xpath(".//*[local-name()='mfenced' and @open='{']")[0]
+    assert fenced.get("open") == "{"
+    assert fenced.get("close") == ""
+    assert len(root.xpath(".//*[local-name()='mtr']")) == 2
+
+
+def test_cases_function_notation() -> None:
+    root = formula_to_mathml("cases(0 if x<0; 1 if x>=0)")
+
+    assert len(root.xpath(".//*[local-name()='mtr']")) == 2
+    assert all(len(row) == 2 for row in root.xpath(".//*[local-name()='mtr']"))
+    assert "if " in "".join(root.itertext())
+
+
+@pytest.mark.parametrize(
+    ("source", "message"),
+    [
+        ("cases(0 x<0; 1 if x>=0)", "cases branch 1"),
+        ("cases(0 if x<0 1 if x>=0)", "after cases branch 1"),
+        ("cases(0 if x<0;)", "branch 2 is empty"),
+        ("f(x) = {0; 1, x>=0}", "Piecewise branch 1"),
+    ],
+)
+def test_piecewise_errors_identify_branch_or_separator(source: str, message: str) -> None:
+    with pytest.raises(FormulaError, match=message) as exc_info:
+        formula_to_mathml(source)
+
+    assert exc_info.value.expected
+    assert exc_info.value.position is not None
 
 
 def test_limit_subscript_notation() -> None:

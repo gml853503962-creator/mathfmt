@@ -153,6 +153,7 @@ TOKEN_RE = re.compile(
     r"(?P<MATRIX_OPEN>\[\[)|"
     r"(?P<MATRIX_CLOSE>\]\])|"
     r"(?P<NUMBER>\d+(?:[\.,]\d+)?)|"
+    r"(?P<IF>if\b)|"
     r"(?P<IDENT>sqrt|lim|exp|sin|cos|tan|Delta|pi|inf|e[pv]|pPAIR|DERV\d+|[A-Za-z][A-Za-z0-9]*|[ΔπΓ∞∫∑∏])|"
     r"(?P<OP><=|>=|!=|<<|>>|~=|->|=>|\+/-|[+\-*/^=<>!±≠≤≥≈→⇒·×÷_])|"
     r"(?P<LPAREN>[\(\[\{])|(?P<RPAREN>[\)\]\}])|(?P<COMMA>,)|(?P<SEMI>;)|"
@@ -299,14 +300,35 @@ class Parser:
         while self.accept("COMMA"):
             nodes.append(self.parse_relation())
         if semi_is_branch and self.current.kind == "SEMI":
-            branches = [Node("sequence", children=tuple(nodes))]
+            branches = [self._piecewise_branch(nodes, 1)]
+            branch_number = 2
             while self.accept("SEMI"):
+                if self.current.kind == "RPAREN":
+                    raise FormulaError(
+                        f"Piecewise branch {branch_number} is empty",
+                        position=self.current.start,
+                        expected="branch expression",
+                        found=self.current.value,
+                        source=self.source,
+                    )
                 branch_nodes = [self.parse_relation()]
                 while self.accept("COMMA"):
                     branch_nodes.append(self.parse_relation())
-                branches.append(Node("sequence", children=tuple(branch_nodes)))
+                branches.append(self._piecewise_branch(branch_nodes, branch_number))
+                branch_number += 1
             return Node("piecewise", children=tuple(branches))
         return nodes[0] if len(nodes) == 1 else Node("sequence", children=tuple(nodes))
+
+    def _piecewise_branch(self, nodes: list[Node], branch_number: int) -> Node:
+        if len(nodes) != 2:
+            raise FormulaError(
+                f"Piecewise branch {branch_number} must contain an expression and condition separated by ','",
+                position=self.current.start,
+                expected="expression, condition",
+                found=self.current.value or self.current.kind,
+                source=self.source,
+            )
+        return Node("case", children=(nodes[0], nodes[1]))
 
     def parse_relation(self) -> Node:
         node = self.parse_add()
@@ -396,6 +418,70 @@ class Parser:
     def _parse_nary(self, name: str) -> Node:
         return Node("nary", name)
 
+    def _parse_cases(self) -> Node:
+        opener = self.expect("LPAREN")
+        if opener.value != "(":
+            raise FormulaError(
+                "cases must use parentheses",
+                position=opener.start,
+                expected="(",
+                found=opener.value,
+                source=self.source,
+            )
+        if self.current.kind == "RPAREN":
+            raise FormulaError(
+                "cases branch 1 is empty",
+                position=self.current.start,
+                expected="branch expression",
+                found=self.current.value,
+                source=self.source,
+            )
+
+        branches: list[Node] = []
+        branch_number = 1
+        while True:
+            expression = self.parse_relation()
+            if self.accept("IF") is None:
+                raise FormulaError(
+                    f"Expected 'if' in cases branch {branch_number}",
+                    position=self.current.start,
+                    expected="if",
+                    found=self.current.value or self.current.kind,
+                    source=self.source,
+                )
+            if self.current.kind in {"SEMI", "RPAREN", "EOF"}:
+                raise FormulaError(
+                    f"Missing condition in cases branch {branch_number}",
+                    position=self.current.start,
+                    expected="condition",
+                    found=self.current.value or self.current.kind,
+                    source=self.source,
+                )
+            condition = self.parse_relation()
+            branches.append(Node("case", children=(expression, condition)))
+
+            if self.accept("SEMI"):
+                branch_number += 1
+                if self.current.kind == "RPAREN":
+                    raise FormulaError(
+                        f"cases branch {branch_number} is empty",
+                        position=self.current.start,
+                        expected="branch expression",
+                        found=self.current.value,
+                        source=self.source,
+                    )
+                continue
+            if self.current.kind == "RPAREN" and self.current.value == ")":
+                self.advance()
+                return Node("piecewise", children=tuple(branches))
+            raise FormulaError(
+                f"Expected ';' or ')' after cases branch {branch_number}",
+                position=self.current.start,
+                expected="; or )",
+                found=self.current.value or self.current.kind,
+                source=self.source,
+            )
+
     def parse_atom(self) -> Node:
         if token := self.accept("MATRIX_OPEN"):
             return self._parse_matrix()
@@ -422,6 +508,8 @@ class Parser:
                     body = self.parse_add()
                     return Node("nary", name, children=(bounds, body))
                 return Node("identifier", name)
+            if name == "cases" and self.current.kind == "LPAREN":
+                return self._parse_cases()
             if self.current.kind == "LPAREN":
                 group = self.parse_group()
                 if name in {"sqrt", "√"}:
@@ -597,12 +685,20 @@ def node_to_mathml(node: Node) -> etree._Element:
     if node.kind == "factorial":
         return mrow(node_to_mathml(node.children[0]), mml("mo", "!"))
     if node.kind == "piecewise":
-        row = mml("mrow")
-        for i, branch in enumerate(node.children):
-            if i:
-                row.append(mml("mo", ";"))
-            row.append(node_to_mathml(branch))
-        return fenced(row, "{}")
+        table = mml("mtable", columnalign="left left")
+        for branch in node.children:
+            if branch.kind not in {"case", "sequence"} or len(branch.children) != 2:
+                raise FormulaError("Piecewise branches require expression and condition pairs")
+            tr = mml("mtr")
+            expression = mml("mtd")
+            expression.append(node_to_mathml(branch.children[0]))
+            condition = mml("mtd")
+            condition.append(mrow(mml("mtext", "if "), node_to_mathml(branch.children[1])))
+            tr.extend([expression, condition])
+            table.append(tr)
+        piecewise = mml("mfenced", open="{", close="")
+        piecewise.append(table)
+        return piecewise
     raise FormulaError(f"Unsupported AST node: {node.kind}")
 
 
@@ -901,9 +997,13 @@ def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
             if not text.strip():
                 continue
             if likely_code(text):
-                summary["code_paragraphs"] += 1
-                continue
-            for span in candidate_spans(text):
+                scan_spans = _latex_delimited_spans(text)
+                if not scan_spans:
+                    summary["code_paragraphs"] += 1
+                    continue
+            else:
+                scan_spans = candidate_spans(text)
+            for span in scan_spans:
                 candidate_id = f"f{len(candidates) + 1:04d}"
                 start, end, source = span.start, span.end, span.source
                 linear = span.linear or source

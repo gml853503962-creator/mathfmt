@@ -20,6 +20,7 @@ INVISIBLE_TIMES = "⁢"
 MATHML_TAGS = {
     "mi",
     "mn",
+    "mtext",
     "mo",
     "mfrac",
     "msqrt",
@@ -102,7 +103,7 @@ def _convert(elem: etree._Element, parent: etree._Element) -> None:
             _convert(child, parent)
         return
 
-    if tag == "mi":
+    if tag in {"mi", "mtext"}:
         _text_run(parent, elem.text or "")
     elif tag == "mn":
         _text_run(parent, elem.text or "")
