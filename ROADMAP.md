@@ -75,7 +75,8 @@ but timelines are best-effort — this is a single-maintainer project.
 
 - [x] LaTeX-style explicit delimiters: `$...$` and `$$...$$` in DOCX text
 - [ ] Nested bracketed constructs: `{ ... }` for explicit grouping
-- [ ] Multi-line equations and aligned environments (`align`, `cases`)
+- [x] Multi-line equations and aligned environments (`a = b \\ c = d`)
+- [ ] Piecewise and `cases` environments
 - [ ] Chemical formulas and reaction arrows
 - [ ] Physics notation: bra-ket `⟨φ|ψ⟩`, tensor indices, partial derivatives `∂f/∂x`
 - [ ] Improved Unicode symbol mapping

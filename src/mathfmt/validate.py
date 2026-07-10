@@ -18,6 +18,7 @@ from .core import (
     formula_to_mathml,
     inspect_docx,
     paragraph_text,
+    split_multiline_formula,
 )
 from .omml import mathml_to_omml_py
 
@@ -180,7 +181,7 @@ def _validate_coverage(
 
         # Check parseable
         try:
-            mathml = formula_to_mathml(linear)
+            mathml_lines = [formula_to_mathml(line) for line in split_multiline_formula(linear)]
             result["parseable"] += 1
         except FormulaError as exc:
             result["failures"].append(
@@ -190,8 +191,8 @@ def _validate_coverage(
 
         # Check OMML producible
         try:
-            omath = mathml_to_omml_py(mathml)
-            if omath is not None:
+            omaths = [mathml_to_omml_py(mathml) for mathml in mathml_lines]
+            if all(omath is not None for omath in omaths):
                 result["omml_produced"] += 1
         except Exception as exc:
             result["failures"].append({"source": source, "error": f"OMML: {exc}"})
@@ -222,19 +223,19 @@ def _validate_cross_backend(
         source = str(candidate.get("source", ""))
         linear = str(candidate.get("linear", source))
         try:
-            mathml = formula_to_mathml(linear)
+            mathml_lines = [formula_to_mathml(line) for line in split_multiline_formula(linear)]
         except FormulaError:
             continue
 
         try:
-            xsl_omath = _mathml_to_omml_xsl(mathml, transform)
-            py_omath = mathml_to_omml_py(mathml)
+            xsl_omaths = [_mathml_to_omml_xsl(mathml, transform) for mathml in mathml_lines]
+            py_omaths = [mathml_to_omml_py(mathml) for mathml in mathml_lines]
         except Exception as exc:
             divergences.append({"source": source, "linear": linear, "error": str(exc)})
             continue
 
-        xsl_count = _tag_signature(xsl_omath)
-        py_count = _tag_signature(py_omath)
+        xsl_count = sum(_tag_signature(omath) for omath in xsl_omaths)
+        py_count = sum(_tag_signature(omath) for omath in py_omaths)
         if abs(xsl_count - py_count) > 10:
             divergences.append(
                 {

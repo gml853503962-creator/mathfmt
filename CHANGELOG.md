@@ -9,10 +9,16 @@ All notable changes to MathFmt are documented here.
   formula, and `$$...$$` scans as a high-confidence display formula.
 - Scan reports now include `explicit: true` for delimiter-detected formulas while
   preserving delimiter text in `source` and parsing delimiter-free `linear`.
+- Reviewed multiline formulas support `\\` and real line-break separators, preserve
+  row order, and render as native Word `m:eqArr` equation arrays aligned at their
+  first relation symbol.
+- Scan and conversion reports include multiline line counts and layout metadata.
 
 ### Fixed
 - Validation coverage now parses reviewed candidates through `linear` when present,
   so delimiter-detected formulas validate consistently with `apply`.
+- Multiline validation parses and compares every reviewed line while keeping
+  candidate-level coverage counts stable.
 
 ## [0.3.0] - 2026-06-25
 

@@ -180,6 +180,21 @@ inner formula has no heuristic anchor operator. During `apply`, MathFmt removes 
 delimiters and inserts only the native Word equation. Simple currency-like spans such
 as `$12.00$` are ignored.
 
+### Reviewed multiline and aligned formulas
+
+Use either a LaTeX-style double backslash or a real line break in a reviewed
+candidate's `linear` value:
+
+| Reviewed `linear` | Result |
+|---|---|
+| `a = b \\ c = d` | Two-row native Word equation array |
+| `x = y` followed by a real line break and `z = w` | Two-row native Word equation array |
+
+Each row is parsed with the normal formula grammar. MathFmt emits one native
+`m:eqArr` object, preserves row order, and inserts Word alignment markers before the
+first top-level relation symbol (`=`, `<`, `>`, `≤`, `≥`, `≠`, `≈`, `→`, or `⇒`).
+Empty rows are rejected with `FormulaError`.
+
 Formulas are detected by walking character runs. A span must satisfy **all** of:
 
 1. **Character whitelist**: every character in `"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789₀₁₂₃₄₅₆₇₈₉ₚᵥₜ⁰¹²³⁴⁵⁶⁷⁸⁹+-*/^=<>!...()[]{}.,"` (full list in `MATH_CHARS` in `core.py`).

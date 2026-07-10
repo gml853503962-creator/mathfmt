@@ -3,7 +3,7 @@ from __future__ import annotations
 from lxml import etree
 
 from mathfmt.core import M_NS, formula_to_mathml, qname
-from mathfmt.omml import mathml_to_omml_py
+from mathfmt.omml import combine_equation_array, mathml_to_omml_py
 
 
 def omath_for(source: str) -> etree._Element:
@@ -138,6 +138,21 @@ def test_comma_separated_sequence() -> None:
     runs = omath.xpath(".//m:r/m:t", namespaces={"m": M_NS})
     texts = [r.text for r in runs]
     assert texts == ["x", ",", "y", ",", "z"]
+
+
+def test_equation_array_preserves_lines_and_aligns_relations() -> None:
+    array = combine_equation_array([omath_for("a = b"), omath_for("long = d")])
+    rows = array.xpath("./m:eqArr/m:e", namespaces={"m": M_NS})
+
+    assert len(rows) == 2
+    assert ["".join(row.itertext()) for row in rows] == ["a&=b", "long&=d"]
+
+
+def test_equation_array_preserves_structured_math() -> None:
+    array = combine_equation_array([omath_for("a / b = c"), omath_for("x^2 = y")])
+
+    assert array.xpath("boolean(.//m:eqArr/m:e/m:f)", namespaces={"m": M_NS})
+    assert array.xpath("boolean(.//m:eqArr/m:e/m:sSup)", namespaces={"m": M_NS})
 
 
 def test_variable_with_numeric_suffix_is_subscript() -> None:

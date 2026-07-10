@@ -8,3 +8,5 @@
 - On Windows, isolated `python -m build` may fail while logging localized pip output with `UnicodeDecodeError`; retry with `PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`, and `python -m build --no-isolation` to verify packaging before treating it as a project build defect.
 - When bumping MathFmt's current version for a release, update self-update tests so fake "newer release" fixtures are greater than the new current version; otherwise update detection tests will correctly report no update.
 - When a scan report distinguishes original `source` from parser-ready `linear`, update apply, validate, and cross-backend checks to parse `linear`; otherwise features such as delimiter stripping can convert successfully but fail validation.
+- When one reviewed formula can contain multiple parse units, split it consistently in scan, apply, validation, and cross-backend checks; keep coverage counts candidate-based, then assemble the final layout only during apply.
+- Use the exact skill locator shown in the available-skills catalog; plugin cache families such as `openai-curated-remote` and `openai-bundled` are not interchangeable.
