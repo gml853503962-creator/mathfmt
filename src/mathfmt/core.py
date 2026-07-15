@@ -54,13 +54,149 @@ CODE_START_RE = re.compile(
     r"title\b|legend\b|hold\b|for\b|while\b|if\b|function\b|import\b|from\b)",
     re.IGNORECASE,
 )
-FORMULA_ANCHOR_RE = re.compile(r"(?:=|≠|<=|>=|!=|→|->|±|\+/-|√|sqrt|lim|∫|∑|∏)")
+FORMULA_ANCHOR_RE = re.compile(r"(?:=|≠|<=|>=|!=|→|⇒|⇌|<->|->|±|\+/-|√|sqrt|lim|∫|∑|∏)")
 MATH_CHARS = set(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "₀₁₂₃₄₅₆₇₈₉ₚᵥₜ⁰¹²³⁴⁵⁶⁷⁸⁹+-*/^=<>!~→⇒±≠≤≥≈√∞ΔπΓ"
+    "₀₁₂₃₄₅₆₇₈₉ₚᵥₜ⁰¹²³⁴⁵⁶⁷⁸⁹+-*/^=<>!~→⇒⇌±≠≤≥≈√∞ΔπΓ"
     "()[]{}.,'′˙¨·×÷_ \t∫∑∏;|"
 )
 TRIM_PUNCT = " \t,，.。;；:："
+
+CHEMICAL_ELEMENTS = frozenset(
+    {
+        "Ac",
+        "Ag",
+        "Al",
+        "Am",
+        "Ar",
+        "As",
+        "At",
+        "Au",
+        "B",
+        "Ba",
+        "Be",
+        "Bh",
+        "Bi",
+        "Bk",
+        "Br",
+        "C",
+        "Ca",
+        "Cd",
+        "Ce",
+        "Cf",
+        "Cl",
+        "Cm",
+        "Cn",
+        "Co",
+        "Cr",
+        "Cs",
+        "Cu",
+        "Ds",
+        "Db",
+        "Dy",
+        "Er",
+        "Es",
+        "Eu",
+        "F",
+        "Fe",
+        "Fl",
+        "Fm",
+        "Fr",
+        "Ga",
+        "Gd",
+        "Ge",
+        "H",
+        "He",
+        "Hf",
+        "Hg",
+        "Ho",
+        "Hs",
+        "I",
+        "In",
+        "Ir",
+        "K",
+        "Kr",
+        "La",
+        "Li",
+        "Lr",
+        "Lu",
+        "Lv",
+        "Mc",
+        "Md",
+        "Mg",
+        "Mn",
+        "Mo",
+        "Mt",
+        "N",
+        "Na",
+        "Nb",
+        "Nd",
+        "Ne",
+        "Nh",
+        "Ni",
+        "No",
+        "Np",
+        "O",
+        "Og",
+        "Os",
+        "P",
+        "Pa",
+        "Pb",
+        "Pd",
+        "Pm",
+        "Po",
+        "Pr",
+        "Pt",
+        "Pu",
+        "Ra",
+        "Rb",
+        "Re",
+        "Rf",
+        "Rg",
+        "Rh",
+        "Rn",
+        "Ru",
+        "S",
+        "Sb",
+        "Sc",
+        "Se",
+        "Sg",
+        "Si",
+        "Sm",
+        "Sn",
+        "Sr",
+        "Ta",
+        "Tb",
+        "Tc",
+        "Te",
+        "Th",
+        "Ti",
+        "Tl",
+        "Tm",
+        "Ts",
+        "U",
+        "V",
+        "W",
+        "Xe",
+        "Y",
+        "Yb",
+        "Zn",
+        "Zr",
+    }
+)
+CHEM_STATE_RE = re.compile(r"\((aq|g|l|s)\)$")
+CHEM_ARROW_RE = re.compile(r"(?P<arrow><->|->|=>|⇌|→|⇒)(?:\s*\[(?P<annotation>[A-Za-z][A-Za-z0-9 +\-]*)\])?")
+CHEM_ARROW_SYMBOLS = {"<->": "⇌", "⇌": "⇌", "->": "→", "→": "→", "=>": "⇒", "⇒": "⇒"}
+_CHEM_FORMULA_FRAGMENT = r"(?:[A-Z][a-z]?\d*|\((?:[A-Z][a-z]?\d*)+\)\d*)+"
+_CHEM_TERM_FRAGMENT = rf"(?:[1-9]\d*\s*)?{_CHEM_FORMULA_FRAGMENT}(?:\((?:aq|g|l|s)\))?"
+_CHEM_SIDE_FRAGMENT = rf"{_CHEM_TERM_FRAGMENT}(?:\s*\+\s*{_CHEM_TERM_FRAGMENT})*"
+CHEM_REACTION_SCAN_RE = re.compile(
+    rf"(?<![A-Za-z0-9])(?P<reaction>{_CHEM_SIDE_FRAGMENT}\s*"
+    rf"(?:<->|->|=>|⇌|→|⇒)(?:\s*\[[^\]\r\n]+\])?\s*{_CHEM_SIDE_FRAGMENT})(?![A-Za-z0-9])"
+)
+CHEM_FORMULA_SCAN_RE = re.compile(
+    rf"(?<![A-Za-z0-9])(?P<formula>{_CHEM_FORMULA_FRAGMENT}(?:\((?:aq|g|l|s)\))?)(?![A-Za-z0-9])"
+)
 
 
 def qname(ns: str, local: str) -> str:
@@ -97,6 +233,19 @@ class Node:
     meta: dict[str, str] | None = None
 
 
+@dataclass
+class ChemicalFormula:
+    element: etree._Element
+    element_count: int
+    has_subscript: bool = False
+    has_group: bool = False
+    has_multiletter_element: bool = False
+
+    @property
+    def distinctive(self) -> bool:
+        return self.element_count >= 2 or self.has_subscript or self.has_group or self.has_multiletter_element
+
+
 @dataclass(frozen=True)
 class CandidateSpan:
     start: int
@@ -105,6 +254,7 @@ class CandidateSpan:
     linear: str | None = None
     display: bool = False
     explicit: bool = False
+    chemistry: bool = False
 
 
 class FormulaError(ValueError):
@@ -155,7 +305,7 @@ TOKEN_RE = re.compile(
     r"(?P<NUMBER>\d+(?:[\.,]\d+)?)|"
     r"(?P<IF>if\b)|"
     r"(?P<IDENT>sqrt|lim|exp|sin|cos|tan|Delta|pi|inf|e[pv]|pPAIR|DERV\d+|[A-Za-z][A-Za-z0-9]*|[ΔπΓ∞∫∑∏])|"
-    r"(?P<OP><=|>=|!=|<<|>>|~=|->|=>|\+/-|[+\-*/^=<>!±≠≤≥≈→⇒·×÷_])|"
+    r"(?P<OP><->|<=|>=|!=|<<|>>|~=|->|=>|\+/-|[+\-*/^=<>!±≠≤≥≈→⇒⇌·×÷_])|"
     r"(?P<LPAREN>[\(\[\{])|(?P<RPAREN>[\)\]\}])|(?P<COMMA>,)|(?P<SEMI>;)|"
     r"(?P<ELLIPSIS>…)"
     r")"
@@ -204,7 +354,7 @@ def preprocess_formula(source: str) -> tuple[str, dict[str, tuple[int, str, str]
     text = re.sub(r"\bp1\s*,\s*2\b", "pPAIR", text)
     text = text.replace("√", "sqrt").replace("+/-", "±")
     text = text.replace("!=", "≠").replace("<=", "≤").replace(">=", "≥")
-    text = text.replace("->", "→").replace("=>", "⇒").replace("...", "…")
+    text = text.replace("<->", "⇌").replace("->", "→").replace("=>", "⇒").replace("...", "…")
     text = text.replace("×", "*").replace("·", "*").replace("÷", "/")
     text = re.sub(r"(?:Γ|1)\(t\)", "u(t)", text)
     text = re.sub(r"\bDelta\b", "Δ", text)
@@ -342,6 +492,7 @@ class Parser:
             "~=",
             "→",
             "⇒",
+            "⇌",
         }:
             op = self.advance().value
             node = Node("binary", op, (node, self.parse_add()))
@@ -751,7 +902,289 @@ def _nary_mathml(node: Node) -> etree._Element:
     return mrow(mml("mo", op_char), body)
 
 
+def _parse_chemical_formula(
+    text: str,
+    *,
+    source: str | None = None,
+    offset: int = 0,
+    context: str = "chemical formula",
+) -> ChemicalFormula:
+    """Parse one compact chemical formula into upright MathML element runs."""
+    index = 0
+    element_count = 0
+    has_subscript = False
+    has_group = False
+    has_multiletter_element = False
+    error_source = source if source is not None else text
+
+    def fail(message: str, position: int) -> FormulaError:
+        return FormulaError(
+            f"Invalid {context}: {message}",
+            position=offset + position,
+            expected="chemical element or parenthesized chemical group",
+            found=text[position] if position < len(text) else "end of formula",
+            source=error_source,
+        )
+
+    def parse_sequence(closer: str | None = None) -> etree._Element:
+        nonlocal index, element_count, has_subscript, has_group, has_multiletter_element
+        children: list[etree._Element] = []
+
+        while index < len(text) and (closer is None or text[index] != closer):
+            if text[index] == "(":
+                group_start = index
+                index += 1
+                if index < len(text) and text[index] == ")":
+                    raise fail("empty chemical group", group_start)
+                inner = parse_sequence(")")
+                if index >= len(text) or text[index] != ")":
+                    raise fail("missing ')' for chemical group", group_start)
+                index += 1
+                base = fenced(inner, "()")
+                has_group = True
+            elif text[index].isupper():
+                symbol_match = re.match(r"[A-Z][a-z]?", text[index:])
+                assert symbol_match is not None
+                symbol = symbol_match.group()
+                symbol_start = index
+                index += len(symbol)
+                if symbol not in CHEMICAL_ELEMENTS:
+                    raise fail(f"unknown element symbol {symbol!r}", symbol_start)
+                element_count += 1
+                has_multiletter_element = has_multiletter_element or len(symbol) == 2
+                base = mml("mtext", symbol)
+            else:
+                raise fail("expected an element symbol", index)
+
+            count_match = re.match(r"[1-9]\d*", text[index:])
+            if count_match:
+                count = count_match.group()
+                index += len(count)
+                subscript = mml("msub")
+                subscript.extend([base, mml("mn", count)])
+                base = subscript
+                has_subscript = True
+            children.append(base)
+
+        if closer is not None and index >= len(text):
+            raise fail(f"missing {closer!r}", max(0, len(text) - 1))
+        if not children:
+            raise fail("formula is empty", index)
+        return mrow(*children)
+
+    if not text:
+        raise fail("formula is empty", 0)
+    element = parse_sequence()
+    if index != len(text):
+        raise fail("unexpected trailing text", index)
+    return ChemicalFormula(
+        element=element,
+        element_count=element_count,
+        has_subscript=has_subscript,
+        has_group=has_group,
+        has_multiletter_element=has_multiletter_element,
+    )
+
+
+def _chemical_term_mathml(
+    raw: str,
+    *,
+    source: str,
+    offset: int,
+    side_name: str,
+    term_number: int,
+) -> tuple[etree._Element, bool]:
+    leading = len(raw) - len(raw.lstrip())
+    term = raw.strip()
+    term_offset = offset + leading
+    if not term:
+        raise FormulaError(
+            f"Chemical {side_name} term {term_number} is empty",
+            position=term_offset,
+            expected="chemical formula",
+            found="end of side",
+            source=source,
+        )
+
+    coefficient: str | None = None
+    coefficient_match = re.match(r"([1-9]\d*)\s*(?=[A-Z(])", term)
+    if coefficient_match:
+        coefficient = coefficient_match.group(1)
+        consumed = coefficient_match.end()
+        term_offset += consumed
+        term = term[consumed:]
+
+    state: str | None = None
+    state_match = CHEM_STATE_RE.search(term)
+    if state_match:
+        state = state_match.group(1)
+        term = term[: state_match.start()]
+
+    parsed = _parse_chemical_formula(
+        term,
+        source=source,
+        offset=term_offset,
+        context=f"chemical formula in {side_name} term {term_number}",
+    )
+    children: list[etree._Element] = []
+    if coefficient is not None:
+        children.append(mml("mn", coefficient))
+    children.append(parsed.element)
+    if state is not None:
+        children.append(mml("mtext", f"({state})"))
+    distinctive = parsed.distinctive or coefficient is not None or state is not None
+    return mrow(*children), distinctive
+
+
+def _chemical_side_mathml(
+    raw: str,
+    *,
+    source: str,
+    offset: int,
+    side_name: str,
+) -> tuple[etree._Element, bool]:
+    segments: list[tuple[int, str]] = []
+    depth = 0
+    start = 0
+    for index, char in enumerate(raw):
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth = max(0, depth - 1)
+        elif char == "+" and depth == 0:
+            segments.append((start, raw[start:index]))
+            start = index + 1
+    segments.append((start, raw[start:]))
+
+    children: list[etree._Element] = []
+    distinctive = len(segments) > 1
+    for term_number, (relative_start, segment) in enumerate(segments, start=1):
+        term, term_distinctive = _chemical_term_mathml(
+            segment,
+            source=source,
+            offset=offset + relative_start,
+            side_name=side_name,
+            term_number=term_number,
+        )
+        if children:
+            children.append(mml("mo", "+"))
+        children.append(term)
+        distinctive = distinctive or term_distinctive
+    return mrow(*children), distinctive
+
+
+def _top_level_chemical_arrows(text: str) -> list[re.Match[str]]:
+    matches: list[re.Match[str]] = []
+    depth = 0
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char in "({":
+            depth += 1
+            index += 1
+            continue
+        if char in ")}":
+            depth = max(0, depth - 1)
+            index += 1
+            continue
+        if depth == 0:
+            match = CHEM_ARROW_RE.match(text, index)
+            if match:
+                matches.append(match)
+                index = match.end()
+                continue
+        index += 1
+    return matches
+
+
+def _standalone_chemical_formula(text: str, *, source: str, offset: int) -> ChemicalFormula:
+    state_match = CHEM_STATE_RE.search(text)
+    formula_text = text[: state_match.start()] if state_match else text
+    parsed = _parse_chemical_formula(formula_text, source=source, offset=offset)
+    if state_match is not None:
+        parsed.element = mrow(parsed.element, mml("mtext", state_match.group()))
+    return parsed
+
+
+def _try_chemistry_mathml(source: str) -> tuple[etree._Element, str, bool] | None:
+    """Return chemistry MathML, expression kind, and signal strength when recognized."""
+    text = source.strip()
+    if not text:
+        return None
+    source_offset = source.find(text)
+    arrows = _top_level_chemical_arrows(text)
+
+    if arrows:
+        first_arrow = arrows[0]
+        left_result: tuple[etree._Element, bool] | None = None
+        right_result: tuple[etree._Element, bool] | None = None
+        left_error: FormulaError | None = None
+        right_error: FormulaError | None = None
+        try:
+            left_result = _chemical_side_mathml(
+                text[: first_arrow.start()],
+                source=source,
+                offset=source_offset,
+                side_name="reactant",
+            )
+        except FormulaError as exc:
+            left_error = exc
+        try:
+            right_result = _chemical_side_mathml(
+                text[first_arrow.end() :],
+                source=source,
+                offset=source_offset + first_arrow.end(),
+                side_name="product",
+            )
+        except FormulaError as exc:
+            right_error = exc
+
+        distinctive = bool(
+            (left_result is not None and left_result[1]) or (right_result is not None and right_result[1])
+        )
+        if not distinctive:
+            return None
+        if len(arrows) != 1:
+            raise FormulaError(
+                "Chemical reaction must contain exactly one top-level arrow",
+                position=source_offset + arrows[1].start(),
+                expected="one reaction arrow",
+                found=arrows[1].group("arrow"),
+                source=source,
+            )
+        if left_error is not None:
+            raise left_error
+        if right_error is not None:
+            raise right_error
+        assert left_result is not None and right_result is not None
+
+        arrow = mml("mo", CHEM_ARROW_SYMBOLS[first_arrow.group("arrow")])
+        annotation = first_arrow.group("annotation")
+        if annotation:
+            annotated_arrow = mml("mover")
+            annotated_arrow.extend([arrow, mml("mtext", annotation.strip())])
+            arrow = annotated_arrow
+        chemistry = mrow(left_result[0], arrow, right_result[0])
+        root = mml("math", display="inline", nsmap={None: MML_NS})
+        root.append(chemistry)
+        return root, "reaction", True
+
+    try:
+        parsed = _standalone_chemical_formula(text, source=source, offset=source_offset)
+    except FormulaError:
+        return None
+    if not parsed.distinctive:
+        return None
+    root = mml("math", display="inline", nsmap={None: MML_NS})
+    root.append(parsed.element)
+    strong = parsed.element_count >= 2 or parsed.has_group
+    return root, "formula", strong
+
+
 def formula_to_mathml(source: str) -> etree._Element:
+    chemistry = _try_chemistry_mathml(source)
+    if chemistry is not None:
+        return chemistry[0]
     normalized, derivatives = preprocess_formula(source)
     ast = Parser(tokenize(normalized), derivatives, normalized).parse()
     root = mml("math", display="inline", nsmap={None: MML_NS})
@@ -830,8 +1263,8 @@ def likely_code(text: str) -> bool:
 
 def math_score(source: str) -> int:
     score = 0
-    score += 3 * len(re.findall(r"=|≠|<=|>=|!=", source))
-    score += 2 * len(re.findall(r"[+*/^√±∞→]", source))
+    score += 3 * len(re.findall(r"=|≠|<=|>=|!=|→|⇒|⇌|<->|->", source))
+    score += 2 * len(re.findall(r"[+*/^√±∞→⇒⇌]", source))
     score += len(re.findall(r"[A-Za-z]\w*\([^)]*\)", source))
     score += len(re.findall(r"\d", source)) // 2
     return score
@@ -884,6 +1317,49 @@ def _latex_delimited_spans(text: str) -> list[CandidateSpan]:
     return spans
 
 
+def _range_overlaps(start: int, end: int, ranges: Sequence[tuple[int, int]]) -> bool:
+    return any(start < claimed_end and end > claimed_start for claimed_start, claimed_end in ranges)
+
+
+def _chemistry_spans(text: str, claimed: Sequence[tuple[int, int]]) -> list[CandidateSpan]:
+    """Find conservative standalone chemistry and full-reaction spans."""
+    spans: list[CandidateSpan] = []
+    reaction_ranges: list[tuple[int, int]] = []
+
+    for match in CHEM_REACTION_SCAN_RE.finditer(text):
+        start, end = match.span("reaction")
+        if _range_overlaps(start, end, claimed):
+            continue
+        source = match.group("reaction")
+        try:
+            chemistry = _try_chemistry_mathml(source)
+        except FormulaError:
+            continue
+        if chemistry is None or chemistry[1] != "reaction":
+            continue
+        spans.append(CandidateSpan(start, end, source, chemistry=True))
+        reaction_ranges.append((start, end))
+
+    occupied = [*claimed, *reaction_ranges]
+    for match in CHEM_FORMULA_SCAN_RE.finditer(text):
+        start, end = match.span("formula")
+        if _range_overlaps(start, end, occupied):
+            continue
+        source = match.group("formula")
+        try:
+            chemistry = _try_chemistry_mathml(source)
+        except FormulaError:
+            continue
+        if chemistry is None or chemistry[1] != "formula":
+            continue
+        # Single elemental symbols are too ambiguous for automatic prose scanning.
+        if not chemistry[2] and not re.search(r"\d|\((?:aq|g|l|s)\)$", source):
+            continue
+        spans.append(CandidateSpan(start, end, source, chemistry=True))
+
+    return spans
+
+
 def candidate_spans(text: str) -> list[CandidateSpan]:
     candidates: list[CandidateSpan] = []
 
@@ -899,14 +1375,17 @@ def candidate_spans(text: str) -> list[CandidateSpan]:
         step_spans.add((match.start(), match.end()))
         candidates.append(CandidateSpan(match.start(), match.end(), match.group()))
 
+    claimed_ranges = [*latex_ranges, *step_spans]
+    chemistry_spans = _chemistry_spans(text, claimed_ranges)
+    candidates.extend(chemistry_spans)
+    chemistry_ranges = [(span.start, span.end) for span in chemistry_spans]
+    claimed_ranges.extend(chemistry_ranges)
+
     index = 0
     while index < len(text):
-        # Skip spans already claimed by explicit LaTeX delimiter detector
-        while any(s <= index < e for s, e in latex_ranges):
-            index = next(e for s, e in latex_ranges if s <= index < e)
-        # Skip spans already claimed by step-function detector
-        while any(s <= index < e for s, e in step_spans):
-            index = next(e for s, e in step_spans if s <= index < e)
+        # Skip spans already claimed by an exact or explicit detector.
+        while any(s <= index < e for s, e in claimed_ranges):
+            index = next(e for s, e in claimed_ranges if s <= index < e)
         if index >= len(text):
             break
         if text[index] not in MATH_CHARS:
@@ -940,7 +1419,7 @@ def candidate_spans(text: str) -> list[CandidateSpan]:
         if source and start >= 0:
             candidates.append(CandidateSpan(start, end, source))
     deduped: list[CandidateSpan] = []
-    for item in candidates:
+    for item in sorted(candidates, key=lambda span: (span.start, span.end)):
         if not deduped or (item.start, item.end) != (deduped[-1].start, deduped[-1].end):
             deduped.append(item)
     return deduped
@@ -1009,11 +1488,29 @@ def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
                 linear = span.linear or source
                 display = span.display or text.strip() == source.strip()
                 score = math_score(linear)
-                has_relation = bool(re.search(r"[=≠≤≥≈→⇒]", linear))
+                has_relation = bool(re.search(r"[=≠≤≥≈→⇒⇌]|<->|->", linear))
                 has_func = bool(re.search(r"\([^)]*\)", linear))
+                chemistry_kind: str | None = None
+                chemistry_strong = False
+                try:
+                    chemistry = _try_chemistry_mathml(linear)
+                    if chemistry is not None:
+                        chemistry_kind = chemistry[1]
+                        chemistry_strong = chemistry[2]
+                except FormulaError:
+                    chemistry = None
                 if span.explicit:
                     confidence = "high"
                     reason = "explicit LaTeX delimiter"
+                elif chemistry_kind == "reaction":
+                    confidence = "high"
+                    reason = "chemical reaction pattern"
+                elif chemistry_kind == "formula" and chemistry_strong:
+                    confidence = "high"
+                    reason = "distinctive chemical formula pattern"
+                elif chemistry_kind == "formula":
+                    confidence = "medium"
+                    reason = "ambiguous single-element chemical formula; review required"
                 elif score >= 8 and has_relation:
                     confidence = "high"
                     reason = "strong formula signal"
@@ -1038,6 +1535,8 @@ def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
                     "confidence": confidence,
                     "confidence_reason": reason,
                     "explicit": span.explicit,
+                    "chemistry": chemistry_kind is not None,
+                    "chemistry_kind": chemistry_kind,
                 }
                 try:
                     formula_lines = split_multiline_formula(linear)
@@ -1066,6 +1565,12 @@ def ancestor_run(text_node: etree._Element, paragraph: etree._Element) -> etree.
             return current
         current = current.getparent()
     return None
+
+
+def _preserve_boundary_spaces(text_element: etree._Element) -> None:
+    value = text_element.text or ""
+    if value.startswith(" ") or value.endswith(" "):
+        text_element.set(qname(XML_NS, "space"), "preserve")
 
 
 def run_with_text_like(run: etree._Element, text: str) -> etree._Element:
@@ -1108,7 +1613,9 @@ def replace_inline_span(paragraph: etree._Element, start: int, end: int, omath: 
         keep_left = value[: max(0, start - lo)] if node is start_node else ""
         keep_right = value[max(0, end - lo) :] if node is end_node else ""
         node.text = keep_left + keep_right
+        _preserve_boundary_spaces(node)
     start_node.text = prefix
+    _preserve_boundary_spaces(start_node)
 
     parent = paragraph
     insert_index = parent.index(start_run) + 1

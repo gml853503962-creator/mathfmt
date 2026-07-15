@@ -123,7 +123,7 @@ derivative → DERV{N}                            // injected by preprocessor
 
 | Level | Operators |
 |---|---|
-| `OP_relation` | `=` `<` `>` `≤` `≥` `≠` `~=` `→` `⇒` |
+| `OP_relation` | `=` `<` `>` `≤` `≥` `≠` `~=` `→` `⇒` `⇌` |
 | `OP_add` | `+` `-` `±` |
 | `OP_mul` | `*` `·` `×` `/` `÷` |
 | `OP_unary` | `+` `-` |
@@ -131,7 +131,7 @@ derivative → DERV{N}                            // injected by preprocessor
 ### Precedence (lowest to highest)
 
 1. `,` (sequence separator)
-2. `=` `<` `>` `≤` `≥` `≠` `~=` `→` `⇒` (relations)
+2. `=` `<` `>` `≤` `≥` `≠` `~=` `→` `⇒` `⇌` (relations)
 3. `+` `-` `±` (addition)
 4. `*` `/` implicit (multiplication — implicit multiply binds tighter than explicit)
 5. `^` (power — right-associative)
@@ -154,6 +154,32 @@ Each branch requires exactly one expression and one condition. Semicolons separa
 branches. The result is a left brace with a two-column table: expressions on the
 left and `if` conditions on the right. Errors identify the failing branch and whether
 `if`, a condition, or a `;`/`)` separator is missing.
+
+### Chemical formulas and reactions
+
+Chemical element symbols are case-sensitive and render upright. A count immediately
+after an element or parenthesized group becomes a native subscript:
+
+| Input | Result |
+|---|---|
+| `H2O` | H₂O |
+| `CO2` | CO₂ |
+| `NaCl` | NaCl with upright element symbols |
+| `Ca(OH)2` | Ca(OH)₂ |
+
+Reaction sides may contain integer coefficients and `+`-separated compounds. Arrow
+spellings are normalized as follows:
+
+| Input | Native arrow |
+|---|---|
+| `2H2 + O2 -> 2H2O` | `→` |
+| `H2(g) + I2(g) <-> 2HI(g)` | `⇌` |
+| `CaCO3 =>[heat] CaO + CO2` | `⇒` with `heat` above the arrow |
+
+The supported physical-state suffixes are `(aq)`, `(g)`, `(l)`, and `(s)`. An
+optional ASCII annotation in square brackets may immediately follow an arrow, as in
+`->[heat]`. MathFmt formats notation only; it does not check reaction balancing or
+chemical validity beyond recognizing standard element symbols.
 
 ---
 
@@ -178,6 +204,8 @@ left and `if` conditions on the right. Errors identify the failing branch and wh
 | `binary` `+` `−` `=` `→` etc. | `m:mrow(left, m:mo(op), right)` |
 | `sequence` `a, b, c` | `m:mrow` with `m:mo(,)` separators |
 | `piecewise` / `cases` | Open-brace `m:mfenced` containing a two-column `m:mtable` |
+| Chemical formula | Upright `m:mtext` element symbols with `m:msub` counts |
+| Chemical reaction | `m:mrow` sides with `m:mo` arrow; annotated arrows use `m:mover` |
 
 ---
 
@@ -197,6 +225,17 @@ inner formula has no heuristic anchor operator. During `apply`, MathFmt removes 
 delimiters and inserts only the native Word equation. Simple currency-like spans such
 as `$12.00$` are ignored.
 
+### Chemistry-specific detection
+
+Full valid reaction spans are high-confidence candidates. Standalone formulas with
+two or more recognized elements, such as `H2O`, `CO2`, and `NaCl`, are also
+high-confidence. A single-element numbered formula such as `O2` is reported at
+medium confidence and is not selected automatically. Bare element symbols such as
+`C` or `Fe` are not auto-detected in prose; keep them inside a larger chemical
+formula or reaction when chemistry styling is required. A bare one-letter symbol
+remains an ordinary math identifier. This keeps ordinary prose, acronyms, and
+letter-to-letter mappings such as `A -> B` from being over-selected.
+
 ### Reviewed multiline and aligned formulas
 
 Use either a LaTeX-style double backslash or a real line break in a reviewed
@@ -209,14 +248,16 @@ candidate's `linear` value:
 
 Each row is parsed with the normal formula grammar. MathFmt emits one native
 `m:eqArr` object, preserves row order, and inserts Word alignment markers before the
-first top-level relation symbol (`=`, `<`, `>`, `≤`, `≥`, `≠`, `≈`, `→`, or `⇒`).
+first top-level relation symbol (`=`, `<`, `>`, `≤`, `≥`, `≠`, `≈`, `→`, `⇒`, or `⇌`).
 Empty rows are rejected with `FormulaError`.
 
-Formulas are detected by walking character runs. A span must satisfy **all** of:
+Outside the explicit-delimiter, step-function, and chemistry detectors described
+above, formulas are detected by walking character runs. A generic span must satisfy
+**all** of:
 
 1. **Character whitelist**: every character in `"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789₀₁₂₃₄₅₆₇₈₉ₚᵥₜ⁰¹²³⁴⁵⁶⁷⁸⁹+-*/^=<>!...()[]{}.,"` (full list in `MATH_CHARS` in `core.py`).
-2. **Anchor operator**: must contain at least one of `=` `≠` `<=` `>=` `!=` `→` `->` `±` `+/-` `√` `sqrt` `lim`.
-3. **Minimum score** ≥ 4: scored by `math_score` — 3 points per `=`/`≠`/`<=`/`>=`/`!=`, 2 points per `+*/^√±∞→`, 1 point per function call pattern `f(x)`, 0.5 points per digit.
+2. **Anchor operator**: must contain at least one of `=` `≠` `<=` `>=` `!=` `→` `⇒` `⇌` `<->` `->` `±` `+/-` `√` `sqrt` `lim`.
+3. **Minimum score** ≥ 4: scored by `math_score` from relation symbols, arithmetic operators, function-call patterns, and digits.
 
 ### Code exclusion
 
@@ -257,6 +298,16 @@ Candidates are cleaned by removing:
 - **False positives**: prose that resembles a formula may be selected as a candidate. Always review the `candidates.json` before applying.
 - **False negatives**: formulas without anchor operators (`=`, `≠`, `≤`, `≥`, `!=`, `→`, `->`, `±`, `+/-`, `√`, `sqrt`, `lim`) are not detected.
 - **Cross-paragraph**: each paragraph is scanned independently; a formula split across two paragraphs is not merged.
+
+### Chemistry limitations
+
+- Element capitalization must be standard (`NaCl`, not `NACL` or `nacl`).
+- Supported states are limited to `(aq)`, `(g)`, `(l)`, and `(s)`.
+- Ionic charges, isotope notation, electron notation, hydrate dots, and conditions
+  below an arrow are not yet supported. In chemistry mode, `+` separates compounds.
+- Arrow annotations use the explicit form `->[text]`; free-standing condition words
+  are not inferred from surrounding prose.
+- MathFmt does not balance reactions or verify stoichiometry.
 
 ### Structural limitations
 

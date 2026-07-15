@@ -59,6 +59,24 @@ def test_subscript_produces_m_sSub() -> None:
     assert ssub.find(qname(M_NS, "sub")) is not None
 
 
+def test_chemistry_uses_plain_element_runs_and_native_subscripts() -> None:
+    omath = omath_for("H2O")
+
+    assert omath.xpath("boolean(.//m:sSub)", namespaces={"m": M_NS})
+    styles = omath.xpath(".//m:rPr/m:sty/@m:val", namespaces={"m": M_NS})
+    assert styles == ["p", "p"]
+    assert "".join(omath.itertext()) == "H2O"
+
+
+def test_annotated_reaction_arrow_produces_upper_limit() -> None:
+    omath = omath_for("CaCO3 =>[heat] CaO + CO2")
+    upper = omath.find(".//m:limUpp", namespaces={"m": M_NS})
+
+    assert upper is not None
+    assert "".join(upper.find("./m:e", namespaces={"m": M_NS}).itertext()) == "⇒"
+    assert "".join(upper.find("./m:lim", namespaces={"m": M_NS}).itertext()) == "heat"
+
+
 def test_delimited_group_produces_m_d() -> None:
     assert "d" in tags("sin(x)")
 

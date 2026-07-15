@@ -188,3 +188,61 @@ def test_standard_deviation_nested_parses() -> None:
     assert "msqrt" in tags
     assert "munderover" in tags  # sum generates munderover
     assert "msub" in tags  # x_i and x_bar generate subscripts
+
+
+# ---------------------------------------------------------------------------
+# v0.4 chemistry coverage — formulas, states, reaction arrows, annotations
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("source", "subscripts"),
+    [("H2O", 1), ("CO2", 1), ("NaCl", 0), ("Ca(OH)2", 1)],
+)
+def test_chemical_formulas_use_upright_elements_and_native_subscripts(source: str, subscripts: int) -> None:
+    root = formula_to_mathml(source)
+
+    assert len(root.xpath(".//*[local-name()='msub']")) == subscripts
+    assert root.xpath(".//*[local-name()='mtext']")
+    assert "".join(root.itertext()) == source.replace("(", "").replace(")", "")
+
+
+@pytest.mark.parametrize(
+    ("source", "arrow"),
+    [
+        ("2H2 + O2 -> 2H2O", "→"),
+        ("H2(g) + I2(g) <-> 2HI(g)", "⇌"),
+        ("CaCO3 => CaO + CO2", "⇒"),
+    ],
+)
+def test_chemical_reactions_normalize_arrows_and_preserve_states(source: str, arrow: str) -> None:
+    root = formula_to_mathml(source)
+
+    assert arrow in "".join(root.itertext())
+    assert root.xpath(".//*[local-name()='msub']")
+    if "(g)" in source:
+        assert "".join(root.itertext()).count("(g)") == 3
+
+
+def test_reaction_heat_annotation_uses_mathml_over_structure() -> None:
+    root = formula_to_mathml("CaCO3 =>[heat] CaO + CO2")
+    over = root.xpath(".//*[local-name()='mover']")
+
+    assert len(over) == 1
+    assert "".join(over[0].itertext()) == "⇒heat"
+
+
+@pytest.mark.parametrize("state", ["aq", "g", "l", "s"])
+def test_supported_chemical_state_suffixes_are_preserved(state: str) -> None:
+    root = formula_to_mathml(f"H2O({state})")
+
+    assert "".join(root.itertext()).endswith(f"({state})")
+
+
+@pytest.mark.parametrize("source", ["H2O ->", "H2O -> Foo", "H2O -> CO2 -> H2"])
+def test_invalid_chemical_reactions_report_the_failing_location(source: str) -> None:
+    with pytest.raises(FormulaError) as exc_info:
+        formula_to_mathml(source)
+
+    assert exc_info.value.position is not None
+    assert exc_info.value.expected

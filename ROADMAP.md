@@ -77,7 +77,7 @@ but timelines are best-effort — this is a single-maintainer project.
 - [ ] Nested bracketed constructs: `{ ... }` for explicit grouping
 - [x] Multi-line equations and aligned environments (`a = b \\ c = d`)
 - [x] Piecewise and `cases` environments
-- [ ] Chemical formulas and reaction arrows
+- [x] Chemical formulas and reaction arrows
 - [ ] Physics notation: bra-ket `⟨φ|ψ⟩`, tensor indices, partial derivatives `∂f/∂x`
 - [ ] Improved Unicode symbol mapping
 - [ ] User-extensible symbol aliases (e.g. custom shorthand → MathML)

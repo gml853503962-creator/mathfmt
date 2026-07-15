@@ -29,6 +29,7 @@ MATHML_TAGS = {
     "msubsup",
     "mfenced",
     "munder",
+    "mover",
     "mrow",
     "mtable",
     "mtr",
@@ -36,7 +37,7 @@ MATHML_TAGS = {
 }
 
 
-RELATION_SYMBOLS = ("=", "≤", "≥", "≠", "≈", "→", "⇒", "<", ">")
+RELATION_SYMBOLS = ("=", "≤", "≥", "≠", "≈", "→", "⇒", "⇌", "<", ">")
 
 
 def mathml_to_omml_py(math_elem: etree._Element) -> etree._Element:
@@ -103,8 +104,10 @@ def _convert(elem: etree._Element, parent: etree._Element) -> None:
             _convert(child, parent)
         return
 
-    if tag in {"mi", "mtext"}:
-        _text_run(parent, elem.text or "")
+    if tag == "mi":
+        _text_run(parent, elem.text or "", plain=elem.get("mathvariant") == "normal")
+    elif tag == "mtext":
+        _text_run(parent, elem.text or "", plain=True)
     elif tag == "mn":
         _text_run(parent, elem.text or "")
     elif tag == "mo":
@@ -125,6 +128,8 @@ def _convert(elem: etree._Element, parent: etree._Element) -> None:
         _delimiter(elem, parent)
     elif tag == "munder":
         _limit(elem, parent)
+    elif tag == "mover":
+        _limit_upper(elem, parent)
     elif tag == "mtable":
         _matrix(elem, parent)
     elif tag == "mrow":
@@ -132,8 +137,12 @@ def _convert(elem: etree._Element, parent: etree._Element) -> None:
             _convert(child, parent)
 
 
-def _text_run(parent: etree._Element, text: str) -> None:
+def _text_run(parent: etree._Element, text: str, *, plain: bool = False) -> None:
     r = etree.SubElement(parent, qname(M_NS, "r"))
+    if plain:
+        r_pr = etree.SubElement(r, qname(M_NS, "rPr"))
+        style = etree.SubElement(r_pr, qname(M_NS, "sty"))
+        style.set(qname(M_NS, "val"), "p")
     t = etree.SubElement(r, qname(M_NS, "t"))
     t.text = text
 
@@ -205,6 +214,16 @@ def _limit(elem: etree._Element, parent: etree._Element) -> None:
     if len(elem) > 0:
         _convert(elem[0], e)
     lim = etree.SubElement(lim_low, qname(M_NS, "lim"))
+    if len(elem) > 1:
+        _convert(elem[1], lim)
+
+
+def _limit_upper(elem: etree._Element, parent: etree._Element) -> None:
+    lim_upp = etree.SubElement(parent, qname(M_NS, "limUpp"))
+    e = etree.SubElement(lim_upp, qname(M_NS, "e"))
+    if len(elem) > 0:
+        _convert(elem[0], e)
+    lim = etree.SubElement(lim_upp, qname(M_NS, "lim"))
     if len(elem) > 1:
         _convert(elem[1], lim)
 
