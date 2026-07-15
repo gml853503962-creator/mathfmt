@@ -181,6 +181,35 @@ optional ASCII annotation in square brackets may immediately follow an arrow, as
 `->[heat]`. MathFmt formats notation only; it does not check reaction balancing or
 chemical validity beyond recognizing standard element symbols.
 
+### Physics notation
+
+First-order partial derivatives accept equivalent ASCII, Unicode, and explicit
+function forms:
+
+| Input | Result |
+|---|---|
+| `partial f / partial x` | Stacked `∂f/∂x` fraction |
+| `∂f/∂x` | Stacked `∂f/∂x` fraction |
+| `partial(f,x)` | Stacked `∂f/∂x` fraction |
+
+Tensor indices use subscript-then-superscript order. Both `T_i^j` and
+`T_{i}^{j}` render as one combined native subscript/superscript structure; the
+braces are grouping syntax and are not displayed.
+
+Bra-ket notation accepts compact ASCII or Unicode, plus explicit functions:
+
+| Input | Result |
+|---|---|
+| `<phi\|psi>` | `⟨phi\|psi⟩` |
+| `⟨φ\|ψ⟩` | `⟨φ\|ψ⟩` |
+| `braket(phi,psi)` | `⟨phi\|psi⟩` |
+| `bra(phi) ket(psi)` | `⟨phi\|psi⟩` |
+
+Standalone Unicode partial derivatives are high-confidence scan candidates.
+ASCII partial phrases, tensor indices, and bra-ket forms are reported at medium
+confidence so prose-like notation remains reviewable. Use `$...$` to mark any of
+these forms explicitly and select them at high confidence.
+
 ---
 
 ## 4. MathML Output Mapping
@@ -193,6 +222,9 @@ chemical validity beyond recognizing standard element symbols.
 | `identifier` `∞` | `m:mo` (infinity) |
 | `identifier` `Δ`, `π` | `m:mi` (Greek letter) |
 | `derivative` | `m:mfrac` with stacked numerator/denominator |
+| `partial_derivative` | `m:mfrac` with `∂` numerator/denominator runs |
+| `subsup` tensor | `m:msubsup` |
+| `bra`, `ket`, `braket` | Angle/bar `m:mfenced` delimiters |
 | `group` `(...)` | `m:mfenced` |
 | `sqrt` | `m:msqrt` |
 | `function` `sin(…)` | `m:mrow(m:mi(sin), m:mfenced(…))` |
@@ -296,7 +328,9 @@ Candidates are cleaned by removing:
 ### Heuristic limitations
 
 - **False positives**: prose that resembles a formula may be selected as a candidate. Always review the `candidates.json` before applying.
-- **False negatives**: formulas without anchor operators (`=`, `≠`, `≤`, `≥`, `!=`, `→`, `->`, `±`, `+/-`, `√`, `sqrt`, `lim`) are not detected.
+- **False negatives**: most formulas without anchor operators (`=`, `≠`, `≤`, `≥`,
+  `!=`, `→`, `->`, `±`, `+/-`, `√`, `sqrt`, `lim`) are not detected. Supported
+  chemistry and physics patterns have dedicated conservative detectors.
 - **Cross-paragraph**: each paragraph is scanned independently; a formula split across two paragraphs is not merged.
 
 ### Chemistry limitations
@@ -308,6 +342,16 @@ Candidates are cleaned by removing:
 - Arrow annotations use the explicit form `->[text]`; free-standing condition words
   are not inferred from surrounding prose.
 - MathFmt does not balance reactions or verify stoichiometry.
+
+### Physics limitations
+
+- Partial-derivative shorthand is first-order. Higher-order and mixed partials are
+  not inferred; use reviewed lower-level notation when needed.
+- Tensor scripts must use subscript-then-superscript order (`T_i^j`). Automatic
+  raising/lowering, index contraction, and tensor semantics are not evaluated.
+- Compact bra-ket syntax supports one separator (`<phi|psi>` or `⟨φ|ψ⟩`). Operator
+  matrix elements such as `⟨φ|A|ψ⟩` are not yet recognized by the compact form;
+  compose them with explicit `bra(...)` and `ket(...)` notation.
 
 ### Structural limitations
 

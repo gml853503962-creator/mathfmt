@@ -66,6 +66,10 @@ Basic chemistry notation is also supported: `H2O`, `CO2`, and `NaCl` use upright
 element symbols and native subscripts; reactions such as `2H2 + O2 -> 2H2O` support
 `->`, `<->`, and `=>`, plus `(aq)/(g)/(l)/(s)` states and `->[heat]` annotations.
 
+Physics notation includes stacked partial derivatives (`partial f / partial x` or
+`∂f/∂x`), tensor indices such as `T_i^j`, and bra-ket forms including
+`<phi|psi>`, `⟨φ|ψ⟩`, and `bra(phi) ket(psi)`.
+
 ---
 
 ## Status
@@ -188,6 +192,9 @@ MathFmt converts plain-text formulas in DOCX files into native Word OMML equatio
 | `x, y, z` | Comma-separated sequence |
 | `H2O` | Upright element symbols with native subscript H₂O |
 | `2H2 + O2 -> 2H2O` | Chemical reaction with a native arrow |
+| `∂f/∂x` | Stacked partial-derivative fraction |
+| `T_i^j` | Combined tensor subscript and superscript |
+| `<phi\|psi>` | Native angle-delimited bra-ket `⟨phi\|psi⟩` |
 
 ### Compatibility
 

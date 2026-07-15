@@ -78,7 +78,7 @@ but timelines are best-effort — this is a single-maintainer project.
 - [x] Multi-line equations and aligned environments (`a = b \\ c = d`)
 - [x] Piecewise and `cases` environments
 - [x] Chemical formulas and reaction arrows
-- [ ] Physics notation: bra-ket `⟨φ|ψ⟩`, tensor indices, partial derivatives `∂f/∂x`
+- [x] Physics notation: bra-ket `⟨φ|ψ⟩`, tensor indices, partial derivatives `∂f/∂x`
 - [ ] Improved Unicode symbol mapping
 - [ ] User-extensible symbol aliases (e.g. custom shorthand → MathML)
 

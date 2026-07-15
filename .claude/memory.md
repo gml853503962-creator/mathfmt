@@ -15,3 +15,5 @@
 - After replacing an inline DOCX formula, set `xml:space="preserve"` on any surviving `w:t` whose text starts or ends with a space; XML text checks can pass while Word/LibreOffice still collapses the visible boundary space.
 - On Windows, if the Documents renderer hangs after selecting LibreOffice, call `C:\Program Files\LibreOffice\program\soffice.com` directly with a unique `-env:UserInstallation=file:///...` profile, then rasterize the PDF. The bundled `pdftoppm.cmd` wrapper may point at a stale path; the working executable is under `dependencies/native/poppler/Library/bin/pdftoppm.exe`.
 - If GitHub CLI authentication is invalid and the connector/public API fallbacks also fail, use a read-only in-app browser tab to capture public Issue acceptance criteria; do not use that browser fallback for GitHub writes.
+- When a DOCX render fixture is assembled from minimal OOXML, include `w:sectPr` with `w:pgSz` and `w:pgMar`; the Documents renderer cannot calculate DPI without section properties.
+- Render adjacent `bra(...) ket(...)` as one bra-ket structure, not two concatenated half-delimiters; visual QA exposes the otherwise valid but misleading double-bar result.

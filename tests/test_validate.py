@@ -64,6 +64,19 @@ def test_chemistry_omml_passes_structure_validation(tmp_path: Path) -> None:
     assert report["omml"]["structural_errors"] == []
 
 
+def test_physics_omml_passes_structure_validation(tmp_path: Path) -> None:
+    source = make_docx_with_omml(
+        tmp_path / "physics.docx",
+        content=f"<w:p>{omath_for('∂f/∂x + T_i^j')}</w:p><w:p>{omath_for('<phi|psi>')}</w:p>",
+    )
+
+    report = validate_docx(source)
+
+    assert report["valid"] is True
+    assert report["omml"]["equation_count"] == 2
+    assert report["omml"]["structural_errors"] == []
+
+
 def test_validate_report_uses_v3_top_level_schema(tmp_path: Path) -> None:
     source = make_docx(tmp_path / "source.docx")
     report = validate_docx(source)

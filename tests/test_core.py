@@ -155,6 +155,38 @@ def test_chemistry_scanner_is_conservative_for_prose_and_single_elements() -> No
     assert spans[0].chemistry is True
 
 
+def test_physics_scanner_finds_supported_notation_as_reviewable_spans() -> None:
+    text = "Use partial f / partial x, ∂g/∂t, T_i^j, <phi|psi>, and bra(phi) ket(psi)."
+    spans = candidate_spans(text)
+
+    assert [span.source for span in spans] == [
+        "partial f / partial x",
+        "∂g/∂t",
+        "T_i^j",
+        "<phi|psi>",
+        "bra(phi) ket(psi)",
+    ]
+    assert [span.physics for span in spans] == [
+        "partial_derivative",
+        "partial_derivative",
+        "tensor",
+        "braket",
+        "braket",
+    ]
+
+
+def test_physics_scanner_avoids_prose_like_angle_and_function_text() -> None:
+    assert candidate_runs("Use <tag> in prose and call bracket(value) normally.") == []
+
+
+@pytest.mark.parametrize("source", ["∂f/∂x = 0", "<phi|psi> = 1", "T_i^j = 0"])
+def test_physics_scanner_keeps_complete_anchored_equations(source: str) -> None:
+    spans = candidate_spans(source)
+
+    assert len(spans) == 1
+    assert spans[0].source == source
+
+
 def test_latex_delimited_candidate_spans() -> None:
     spans = candidate_spans("Inline $x^2 + 1$ and display $$y = 2$$.")
 
