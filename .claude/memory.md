@@ -17,3 +17,5 @@
 - If GitHub CLI authentication is invalid and the connector/public API fallbacks also fail, use a read-only in-app browser tab to capture public Issue acceptance criteria; do not use that browser fallback for GitHub writes.
 - When a DOCX render fixture is assembled from minimal OOXML, include `w:sectPr` with `w:pgSz` and `w:pgMar`; the Documents renderer cannot calculate DPI without section properties.
 - Render adjacent `bra(...) ket(...)` as one bra-ket structure, not two concatenated half-delimiters; visual QA exposes the otherwise valid but misleading double-bar result.
+- In a sandboxed Windows shell, `gh auth status` can report a keyring token as invalid because Windows Credential Manager is inaccessible; rerun GitHub CLI checks and writes in the approved system-permission context before asking the user to authenticate again.
+- If the GitHub app returns `403 Resource not accessible by integration` when creating a PR, fall back to authenticated `gh pr create --draft` with the Markdown body stored in a real newline-preserving temp file.
