@@ -89,6 +89,41 @@ def test_derivative_produces_m_f() -> None:
     assert "f" in tags("ds(t)/dt")
 
 
+def test_partial_derivative_produces_fraction_with_partial_runs() -> None:
+    omath = omath_for("∂f/∂x")
+    fraction = omath.find(".//m:f", namespaces={"m": M_NS})
+
+    assert fraction is not None
+    assert "".join(fraction.find("./m:num", namespaces={"m": M_NS}).itertext()) == "∂f"
+    assert "".join(fraction.find("./m:den", namespaces={"m": M_NS}).itertext()) == "∂x"
+
+
+def test_tensor_indices_produce_combined_omml_script() -> None:
+    assert "sSubSup" in tags("T_i^j")
+
+
+@pytest.mark.parametrize(
+    ("source", "delimiters"),
+    [
+        ("<phi|psi>", [("⟨", "⟩")]),
+        ("bra(phi) ket(psi)", [("⟨", "⟩")]),
+    ],
+)
+def test_braket_notation_produces_native_omml_delimiters(
+    source: str, delimiters: list[tuple[str, str]]
+) -> None:
+    omath = omath_for(source)
+    actual = [
+        (
+            item.find("./m:dPr/m:begChr", namespaces={"m": M_NS}).get(qname(M_NS, "val")),
+            item.find("./m:dPr/m:endChr", namespaces={"m": M_NS}).get(qname(M_NS, "val")),
+        )
+        for item in omath.xpath(".//m:d", namespaces={"m": M_NS})
+    ]
+
+    assert actual == delimiters
+
+
 # -- round-trip tests (all README examples) -----------------------------------
 
 

@@ -239,6 +239,64 @@ def test_supported_chemical_state_suffixes_are_preserved(state: str) -> None:
     assert "".join(root.itertext()).endswith(f"({state})")
 
 
+# ---------------------------------------------------------------------------
+# v0.4 physics coverage — partial derivatives, tensor indices, bra-ket
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("source", ["partial f / partial x", "∂f/∂x", "partial(f,x)"])
+def test_partial_derivatives_use_stacked_fraction(source: str) -> None:
+    root = formula_to_mathml(source)
+    fraction = root.find(".//{*}mfrac")
+
+    assert fraction is not None
+    assert "".join(fraction[0].itertext()) == "∂f"
+    assert "".join(fraction[1].itertext()) == "∂x"
+
+
+@pytest.mark.parametrize("source", ["T_i^j", "T_{i}^{j}"])
+def test_tensor_indices_use_combined_subscript_and_superscript(source: str) -> None:
+    root = formula_to_mathml(source)
+
+    assert len(root.xpath(".//*[local-name()='msubsup']")) == 1
+    assert not root.xpath(".//*[local-name()='mfenced']")
+
+
+@pytest.mark.parametrize("source", ["<phi|psi>", "⟨φ|ψ⟩", "braket(phi,psi)"])
+def test_braket_inputs_use_angle_delimiters(source: str) -> None:
+    root = formula_to_mathml(source)
+    delimiter = root.xpath(".//*[local-name()='mfenced']")[0]
+
+    assert delimiter.get("open") == "⟨"
+    assert delimiter.get("close") == "⟩"
+    assert "|" in "".join(delimiter.itertext())
+
+
+def test_standalone_bra_and_ket_functions_use_half_angle_delimiters() -> None:
+    bra = formula_to_mathml("bra(phi)").xpath(".//*[local-name()='mfenced']")[0]
+    ket = formula_to_mathml("ket(psi)").xpath(".//*[local-name()='mfenced']")[0]
+
+    assert (bra.get("open"), bra.get("close")) == ("⟨", "|")
+    assert (ket.get("open"), ket.get("close")) == ("|", "⟩")
+
+
+def test_adjacent_bra_and_ket_collapse_to_one_inner_product() -> None:
+    root = formula_to_mathml("bra(phi) ket(psi)")
+    delimiters = root.xpath(".//*[local-name()='mfenced']")
+
+    assert [(item.get("open"), item.get("close")) for item in delimiters] == [("⟨", "⟩")]
+    assert "".join(delimiters[0].itertext()) == "phi|psi"
+
+
+@pytest.mark.parametrize("source", ["partial(f)", "braket(phi)", "bra(phi,psi)"])
+def test_physics_functions_report_invalid_argument_counts(source: str) -> None:
+    with pytest.raises(FormulaError, match="requires") as exc_info:
+        formula_to_mathml(source)
+
+    assert exc_info.value.position is not None
+    assert exc_info.value.expected
+
+
 @pytest.mark.parametrize("source", ["H2O ->", "H2O -> Foo", "H2O -> CO2 -> H2"])
 def test_invalid_chemical_reactions_report_the_failing_location(source: str) -> None:
     with pytest.raises(FormulaError) as exc_info:

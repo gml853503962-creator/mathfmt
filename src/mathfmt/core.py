@@ -58,7 +58,8 @@ FORMULA_ANCHOR_RE = re.compile(r"(?:=|≠|<=|>=|!=|→|⇒|⇌|<->|->|±|\+/-|�
 MATH_CHARS = set(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
     "₀₁₂₃₄₅₆₇₈₉ₚᵥₜ⁰¹²³⁴⁵⁶⁷⁸⁹+-*/^=<>!~→⇒⇌±≠≤≥≈√∞ΔπΓ"
-    "()[]{}.,'′˙¨·×÷_ \t∫∑∏;|"
+    "()[]{}⟨⟩.,'′˙¨·×÷_ \t∫∑∏∂;|"
+    "ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩαβγδεζηθικλμνξοπρστυφχψω"
 )
 TRIM_PUNCT = " \t,，.。;；:："
 
@@ -198,6 +199,26 @@ CHEM_FORMULA_SCAN_RE = re.compile(
     rf"(?<![A-Za-z0-9])(?P<formula>{_CHEM_FORMULA_FRAGMENT}(?:\((?:aq|g|l|s)\))?)(?![A-Za-z0-9])"
 )
 
+_PHYSICS_IDENTIFIER = r"(?:[A-Za-z][A-Za-z0-9]*|[Α-Ωα-ω])"
+_PHYSICS_INDEX = rf"(?:{_PHYSICS_IDENTIFIER}|\d+)"
+PARTIAL_DERIVATIVE_SCAN_RE = re.compile(
+    rf"(?<![A-Za-z0-9])(?P<partial>(?:partial\s+{_PHYSICS_IDENTIFIER}\s*/\s*"
+    rf"partial\s+{_PHYSICS_IDENTIFIER}|∂\s*{_PHYSICS_IDENTIFIER}\s*/\s*∂\s*{_PHYSICS_IDENTIFIER}))"
+    rf"(?![A-Za-z0-9])"
+)
+TENSOR_SCAN_RE = re.compile(
+    rf"(?<![A-Za-z0-9])(?P<tensor>{_PHYSICS_IDENTIFIER}_"
+    rf"(?:{_PHYSICS_INDEX}|\{{{_PHYSICS_INDEX}\}})\^"
+    rf"(?:{_PHYSICS_INDEX}|\{{{_PHYSICS_INDEX}\}}))(?![A-Za-z0-9])"
+)
+BRAKET_SCAN_RE = re.compile(
+    rf"(?<![A-Za-z0-9])(?P<braket>(?:"
+    rf"(?:<|⟨)\s*{_PHYSICS_IDENTIFIER}\s*\|\s*{_PHYSICS_IDENTIFIER}\s*(?:>|⟩)|"
+    rf"bra\(\s*{_PHYSICS_IDENTIFIER}\s*\)\s+ket\(\s*{_PHYSICS_IDENTIFIER}\s*\)|"
+    rf"(?:bra|ket)\(\s*{_PHYSICS_IDENTIFIER}\s*\)))"
+    rf"(?![A-Za-z0-9])"
+)
+
 
 def qname(ns: str, local: str) -> str:
     return f"{{{ns}}}{local}"
@@ -255,6 +276,7 @@ class CandidateSpan:
     display: bool = False
     explicit: bool = False
     chemistry: bool = False
+    physics: str | None = None
 
 
 class FormulaError(ValueError):
@@ -304,7 +326,7 @@ TOKEN_RE = re.compile(
     r"(?P<MATRIX_CLOSE>\]\])|"
     r"(?P<NUMBER>\d+(?:[\.,]\d+)?)|"
     r"(?P<IF>if\b)|"
-    r"(?P<IDENT>sqrt|lim|exp|sin|cos|tan|Delta|pi|inf|e[pv]|pPAIR|DERV\d+|[A-Za-z][A-Za-z0-9]*|[ΔπΓ∞∫∑∏])|"
+    r"(?P<IDENT>sqrt|lim|exp|sin|cos|tan|Delta|pi|inf|e[pv]|pPAIR|DERV\d+|[A-Za-z][A-Za-z0-9]*|[Α-Ωα-ω∞∫∑∏])|"
     r"(?P<OP><->|<=|>=|!=|<<|>>|~=|->|=>|\+/-|[+\-*/^=<>!±≠≤≥≈→⇒⇌·×÷_])|"
     r"(?P<LPAREN>[\(\[\{])|(?P<RPAREN>[\)\]\}])|(?P<COMMA>,)|(?P<SEMI>;)|"
     r"(?P<ELLIPSIS>…)"
@@ -315,6 +337,23 @@ TOKEN_RE = re.compile(
 def preprocess_formula(source: str) -> tuple[str, dict[str, tuple[int, str, str]]]:
     text = source.strip()
     derivatives: dict[str, tuple[int, str, str]] = {}
+
+    # Normalize documented physics shorthand into explicit parser functions.
+    text = re.sub(
+        rf"\bpartial\s+({_PHYSICS_IDENTIFIER})\s*/\s*partial\s+({_PHYSICS_IDENTIFIER})\b",
+        r"partial(\1,\2)",
+        text,
+    )
+    text = re.sub(
+        rf"∂\s*({_PHYSICS_IDENTIFIER})\s*/\s*∂\s*({_PHYSICS_IDENTIFIER})",
+        r"partial(\1,\2)",
+        text,
+    )
+    text = re.sub(
+        rf"(?:<|⟨)\s*({_PHYSICS_IDENTIFIER})\s*\|\s*({_PHYSICS_IDENTIFIER})\s*(?:>|⟩)",
+        r"braket(\1,\2)",
+        text,
+    )
 
     leibniz_patterns = [
         (2, re.compile(r"\bd(?:\^?2|²)([A-Za-z])\(([^()]*)\)/d([A-Za-z])(?:\^?2|²)")),
@@ -515,7 +554,11 @@ class Parser:
                 op = self.advance().value
                 node = Node("binary", "/" if op in {"/", "÷"} else "*", (node, self.parse_power()))
             elif self.starts_atom() and self.current.kind != "MATRIX_OPEN":
-                node = Node("binary", "implicit", (node, self.parse_power()))
+                right = self.parse_power()
+                if node.kind == "bra" and right.kind == "ket":
+                    node = Node("braket", children=(node.children[0], right.children[0]))
+                else:
+                    node = Node("binary", "implicit", (node, right))
             else:
                 break
         return node
@@ -568,6 +611,22 @@ class Parser:
 
     def _parse_nary(self, name: str) -> Node:
         return Node("nary", name)
+
+    def _parse_physics_function(self, name: str, token: Token) -> Node:
+        group = self.parse_group()
+        inner = group.children[0]
+        arguments = inner.children if inner.kind == "sequence" else (inner,)
+        expected_count = 2 if name in {"partial", "braket"} else 1
+        if len(arguments) != expected_count:
+            raise FormulaError(
+                f"{name} requires {expected_count} argument{'s' if expected_count != 1 else ''}",
+                position=token.start,
+                expected=f"{expected_count} comma-separated argument{'s' if expected_count != 1 else ''}",
+                found=str(len(arguments)),
+                source=self.source,
+            )
+        kind = "partial_derivative" if name == "partial" else name
+        return Node(kind, children=tuple(arguments))
 
     def _parse_cases(self) -> Node:
         opener = self.expect("LPAREN")
@@ -661,6 +720,8 @@ class Parser:
                 return Node("identifier", name)
             if name == "cases" and self.current.kind == "LPAREN":
                 return self._parse_cases()
+            if name in {"partial", "bra", "ket", "braket"} and self.current.kind == "LPAREN":
+                return self._parse_physics_function(name, token)
             if self.current.kind == "LPAREN":
                 group = self.parse_group()
                 if name in {"sqrt", "√"}:
@@ -745,10 +806,24 @@ def derivative_mathml(node: Node) -> etree._Element:
     return fraction
 
 
+def partial_derivative_mathml(node: Node) -> etree._Element:
+    fraction = mml("mfrac")
+    numerator = mrow(mml("mo", "∂"), node_to_mathml(node.children[0]))
+    denominator = mrow(mml("mo", "∂"), node_to_mathml(node.children[1]))
+    fraction.extend([numerator, denominator])
+    return fraction
+
+
 def fenced(child: etree._Element, brackets: str) -> etree._Element:
     element = mml("mfenced", open=brackets[0], close=brackets[1])
     element.append(child)
     return element
+
+
+def _script_mathml(node: Node) -> etree._Element:
+    if node.kind == "group":
+        node = node.children[0]
+    return node_to_mathml(node)
 
 
 def node_to_mathml(node: Node) -> etree._Element:
@@ -758,6 +833,19 @@ def node_to_mathml(node: Node) -> etree._Element:
         return identifier_mathml(node.value or "")
     if node.kind == "derivative":
         return derivative_mathml(node)
+    if node.kind == "partial_derivative":
+        return partial_derivative_mathml(node)
+    if node.kind == "bra":
+        return fenced(node_to_mathml(node.children[0]), "⟨|")
+    if node.kind == "ket":
+        return fenced(node_to_mathml(node.children[0]), "|⟩")
+    if node.kind == "braket":
+        content = mrow(
+            node_to_mathml(node.children[0]),
+            mml("mo", "|"),
+            node_to_mathml(node.children[1]),
+        )
+        return fenced(content, "⟨⟩")
     if node.kind == "group":
         return fenced(node_to_mathml(node.children[0]), node.value or "()")
     if node.kind == "sqrt":
@@ -776,9 +864,7 @@ def node_to_mathml(node: Node) -> etree._Element:
     if node.kind == "power":
         power = mml("msup")
         exponent = node.children[1]
-        if exponent.kind == "group" and exponent.value == "()":
-            exponent = exponent.children[0]
-        power.extend([node_to_mathml(node.children[0]), node_to_mathml(exponent)])
+        power.extend([node_to_mathml(node.children[0]), _script_mathml(exponent)])
         return power
     if node.kind == "binary":
         left = node_to_mathml(node.children[0])
@@ -824,12 +910,13 @@ def node_to_mathml(node: Node) -> etree._Element:
     if node.kind == "sub":
         sub = mml("msub")
         sub.append(node_to_mathml(node.children[0]))
-        sub.append(node_to_mathml(node.children[1]))
+        sub.append(_script_mathml(node.children[1]))
         return sub
     if node.kind == "subsup":
         ss = mml("msubsup")
-        for child in node.children:
-            ss.append(node_to_mathml(child))
+        ss.append(node_to_mathml(node.children[0]))
+        ss.append(_script_mathml(node.children[1]))
+        ss.append(_script_mathml(node.children[2]))
         return ss
     if node.kind == "nary":
         return _nary_mathml(node)
@@ -1267,6 +1354,10 @@ def math_score(source: str) -> int:
     score += 2 * len(re.findall(r"[+*/^√±∞→⇒⇌]", source))
     score += len(re.findall(r"[A-Za-z]\w*\([^)]*\)", source))
     score += len(re.findall(r"\d", source)) // 2
+    if any(
+        pattern.search(source) for pattern in (PARTIAL_DERIVATIVE_SCAN_RE, TENSOR_SCAN_RE, BRAKET_SCAN_RE)
+    ):
+        score += 3
     return score
 
 
@@ -1360,6 +1451,41 @@ def _chemistry_spans(text: str, claimed: Sequence[tuple[int, int]]) -> list[Cand
     return spans
 
 
+def _physics_spans(text: str, claimed: Sequence[tuple[int, int]]) -> list[CandidateSpan]:
+    """Find supported physics notation without promoting ambiguous prose to high confidence."""
+    spans: list[CandidateSpan] = []
+    occupied = list(claimed)
+    patterns = (
+        (PARTIAL_DERIVATIVE_SCAN_RE, "partial_derivative"),
+        (TENSOR_SCAN_RE, "tensor"),
+        (BRAKET_SCAN_RE, "braket"),
+    )
+    for pattern, kind in patterns:
+        for match in pattern.finditer(text):
+            start, end = match.span()
+            if _range_overlaps(start, end, occupied):
+                continue
+            source = match.group()
+            try:
+                formula_to_mathml(source)
+            except FormulaError:
+                continue
+            spans.append(CandidateSpan(start, end, source, physics=kind))
+            occupied.append((start, end))
+    return spans
+
+
+def _physics_kind(source: str) -> str | None:
+    for pattern, kind in (
+        (PARTIAL_DERIVATIVE_SCAN_RE, "partial_derivative"),
+        (TENSOR_SCAN_RE, "tensor"),
+        (BRAKET_SCAN_RE, "braket"),
+    ):
+        if pattern.search(source):
+            return kind
+    return None
+
+
 def candidate_spans(text: str) -> list[CandidateSpan]:
     candidates: list[CandidateSpan] = []
 
@@ -1418,6 +1544,11 @@ def candidate_spans(text: str) -> list[CandidateSpan]:
         end = start + len(source)
         if source and start >= 0:
             candidates.append(CandidateSpan(start, end, source))
+
+    # Let complete anchored equations claim their ranges before adding
+    # standalone physics notation such as ``T_i^j`` or ``<phi|psi>``.
+    occupied_ranges = [(span.start, span.end) for span in candidates]
+    candidates.extend(_physics_spans(text, occupied_ranges))
     deduped: list[CandidateSpan] = []
     for item in sorted(candidates, key=lambda span: (span.start, span.end)):
         if not deduped or (item.start, item.end) != (deduped[-1].start, deduped[-1].end):
@@ -1492,6 +1623,7 @@ def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
                 has_func = bool(re.search(r"\([^)]*\)", linear))
                 chemistry_kind: str | None = None
                 chemistry_strong = False
+                physics_kind = span.physics or _physics_kind(linear)
                 try:
                     chemistry = _try_chemistry_mathml(linear)
                     if chemistry is not None:
@@ -1511,6 +1643,12 @@ def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
                 elif chemistry_kind == "formula":
                     confidence = "medium"
                     reason = "ambiguous single-element chemical formula; review required"
+                elif physics_kind == "partial_derivative" and "∂" in linear:
+                    confidence = "high"
+                    reason = "distinctive Unicode partial derivative pattern"
+                elif physics_kind is not None:
+                    confidence = "medium"
+                    reason = f"physics {physics_kind} pattern; review required"
                 elif score >= 8 and has_relation:
                     confidence = "high"
                     reason = "strong formula signal"
@@ -1537,6 +1675,8 @@ def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
                     "explicit": span.explicit,
                     "chemistry": chemistry_kind is not None,
                     "chemistry_kind": chemistry_kind,
+                    "physics": physics_kind is not None,
+                    "physics_kind": physics_kind,
                 }
                 try:
                     formula_lines = split_multiline_formula(linear)

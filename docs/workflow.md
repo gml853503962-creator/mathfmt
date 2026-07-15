@@ -121,6 +121,8 @@ Open `candidates.json` and for each candidate:
 | `explicit` | `true` when detected from `$...$` or `$$...$$` delimiters |
 | `chemistry` | `true` when the conservative chemistry parser recognized the candidate |
 | `chemistry_kind` | `"formula"`, `"reaction"`, or `null` |
+| `physics` | `true` when supported partial, tensor, or bra-ket notation was recognized |
+| `physics_kind` | `"partial_derivative"`, `"tensor"`, `"braket"`, or `null` |
 | `multiline` | `true` when `linear` contains two or more reviewed formula lines |
 | `line_count` | Number of reviewed formula lines |
 
@@ -351,7 +353,7 @@ The `doctor --json` output is machine-readable:
 | `MML2OMML.XSL was not found` | Normal — the built-in Python backend is used automatically. To use Office XSL, pass `--xsl` |
 | `Refusing to overwrite the input DOCX` | MathFmt never overwrites the source; choose a different `--output` path |
 | `Input must be a .docx file` | MathFmt only handles `.docx` (Office Open XML); convert older `.doc` files first |
-| Formula not detected | Check whether it contains an anchor operator (`=`, `≠`, `<=`, `>=`, `!=`, `→`, `->`, `±`, `+/-`, `√`, `sqrt`, `lim`). If not, the scanner will miss it |
+| Formula not detected | Check whether it contains an anchor operator (`=`, `≠`, `<=`, `>=`, `!=`, `→`, `->`, `±`, `+/-`, `√`, `sqrt`, `lim`) or a documented chemistry/physics pattern. Otherwise mark it explicitly with `$...$` |
 | `parse_status: "review"` | The formula couldn't be parsed. Edit `linear` in the candidate report, or set `selected: false` |
 | Table formula is cut off | The formula may be too long even after splitting. Shorten the `linear` text or split it manually into multiple paragraphs |
 | `hyperlink` in skipped error | The formula is inside a hyperlink. Move it outside the `w:hyperlink` element in the DOCX |

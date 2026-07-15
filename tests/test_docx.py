@@ -322,6 +322,43 @@ def test_scan_and_apply_chemistry_with_conservative_single_element_selection(tmp
     assert root.xpath(".//m:rPr/m:sty[@m:val='p']", namespaces=NS)
 
 
+def test_scan_and_apply_physics_notation_with_reviewable_ambiguity(tmp_path: Path) -> None:
+    document = document_with_body(
+        """
+        <w:p><w:r><w:t>Unicode derivative: ∂f/∂x.</w:t></w:r></w:p>
+        <w:p><w:r><w:t>ASCII derivative: partial g / partial t.</w:t></w:r></w:p>
+        <w:p><w:r><w:t>Tensor T_i^j and state &lt;phi|psi&gt;.</w:t></w:r></w:p>
+        <w:p><w:r><w:t>Bra-ket functions bra(phi) ket(psi).</w:t></w:r></w:p>
+        """
+    )
+    source = make_docx(tmp_path / "source.docx", document_xml=document)
+    review = tmp_path / "review.json"
+    output = tmp_path / "output.docx"
+
+    report = scan_docx(source, review)
+    candidates = [candidate for candidate in report["candidates"] if candidate["part"] == "word/document.xml"]
+    by_source = {candidate["source"]: candidate for candidate in candidates}
+
+    assert set(by_source) == {"∂f/∂x", "partial g / partial t", "T_i^j", "<phi|psi>", "bra(phi) ket(psi)"}
+    assert by_source["∂f/∂x"]["confidence"] == "high"
+    assert by_source["∂f/∂x"]["selected"] is True
+    for formula in ("partial g / partial t", "T_i^j", "<phi|psi>", "bra(phi) ket(psi)"):
+        assert by_source[formula]["confidence"] == "medium"
+        assert by_source[formula]["selected"] is False
+        by_source[formula]["selected"] = True
+    assert all(candidate["physics"] for candidate in candidates)
+    review.write_text(json.dumps(report), encoding="utf-8")
+
+    result = apply_docx(source, review, output, tmp_path / "result.json", xsl_path=None)
+
+    assert result["converted_count"] == 5
+    with zipfile.ZipFile(output) as archive:
+        root = etree.fromstring(archive.read("word/document.xml"))
+    assert len(root.xpath(".//m:f", namespaces=NS)) == 2
+    assert len(root.xpath(".//m:sSubSup", namespaces=NS)) == 1
+    assert len(root.xpath(".//m:d", namespaces=NS)) == 2
+
+
 def test_scan_accepts_multiline_latex_delimited_formula(tmp_path: Path) -> None:
     formula = r"$$a = b \\ c = d$$"
     document = document_with_body(f"<w:p><w:r><w:t>{formula}</w:t></w:r></w:p>")

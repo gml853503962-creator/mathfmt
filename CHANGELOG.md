@@ -22,6 +22,10 @@ All notable changes to MathFmt are documented here.
   `+`-separated compounds, and optional arrow annotations such as `->[heat]`.
 - Scan reports identify chemistry candidates and conservatively leave ambiguous
   single-element formulas unselected.
+- Physics notation supports ASCII and Unicode partial derivatives, combined tensor
+  subscript/superscript indices, and compact or function-style bra-ket forms.
+- Scan reports identify `partial_derivative`, `tensor`, and `braket` candidates;
+  prose-like ASCII physics notation remains unselected for review by default.
 
 ### Fixed
 - Validation coverage now parses reviewed candidates through `linear` when present,
