@@ -62,6 +62,10 @@ Piecewise formulas support both `f(x) = {0, x<0; 1, x>=0}` and
 `cases(0 if x<0; 1 if x>=0)`. Both render as a native Word expression with a left
 brace and aligned expression/condition columns.
 
+Basic chemistry notation is also supported: `H2O`, `CO2`, and `NaCl` use upright
+element symbols and native subscripts; reactions such as `2H2 + O2 -> 2H2O` support
+`->`, `<->`, and `=>`, plus `(aq)/(g)/(l)/(s)` states and `->[heat]` annotations.
+
 ---
 
 ## Status
@@ -90,6 +94,8 @@ MathFmt 将 DOCX 中的普通文本公式排版为 Word 原生 OMML 公式。
 | `1(t)` | u(t)（单位阶跃） |
 | `Delta + pi` | Δ + π |
 | `x, y, z` | 逗号分隔序列 |
+| `H2O` | 直立元素符号与原生下标 H₂O |
+| `2H2 + O2 -> 2H2O` | 化学反应式与原生箭头 |
 
 ### 兼容性
 
@@ -142,6 +148,7 @@ pip install --upgrade mathfmt
 | **0.2.2** (2026-06-21) | CI/Ruff 修复；缓存崩溃修复；退出码修正；验证报告版本 |
 | **0.2.3** (2026-06-22) | Parser 修复（省略号/阶乘/大型算子/边界/深度）；文档与示例完善 |
 | **0.3.0** (2026-06-25) | 结构化转换报告；dry-run 预览；严格模式；失败公式提示；更好的错误信息 |
+| **0.4.0** (planned) | LaTeX 分隔符；多行对齐；分段函数；基础化学式与反应箭头 |
 | **1.0.0** (2027) | 稳定 API；长期支持 |
 
 ### 更多文档
@@ -179,6 +186,8 @@ MathFmt converts plain-text formulas in DOCX files into native Word OMML equatio
 | `1(t)` | u(t) (unit step) |
 | `Delta + pi` | Δ + π |
 | `x, y, z` | Comma-separated sequence |
+| `H2O` | Upright element symbols with native subscript H₂O |
+| `2H2 + O2 -> 2H2O` | Chemical reaction with a native arrow |
 
 ### Compatibility
 
@@ -231,7 +240,7 @@ pip install --upgrade mathfmt
 | **0.2.2** (2026-06-21) | CI/Ruff fixes; cache crash fix; exit code correction; validate version |
 | **0.2.3** (2026-06-22) | Parser fixes (ellipsis, factorial, n-ary, 1(t), x_bar, boundary); depth validation; docs & examples |
 | **0.3.0** (2026-06-25) | Structured conversion reports; dry-run preview; strict mode; failed-formula warnings; better errors |
-| **0.4.0** (planned) | Formula coverage improvements, including LaTeX delimiters, aligned multiline equations, and piecewise cases |
+| **0.4.0** (planned) | LaTeX delimiters, aligned multiline equations, piecewise cases, and basic chemistry notation |
 | **1.0.0** (2027) | Stable API; long-term support |
 
 ### Further Reading

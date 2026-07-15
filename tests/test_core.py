@@ -138,6 +138,23 @@ def test_candidate_boundaries_and_low_score_text() -> None:
     assert candidate_runs("ordinary prose") == []
 
 
+def test_chemistry_scanner_finds_formulas_and_whole_reactions() -> None:
+    text = "Water is H2O; salt is NaCl. Reaction: 2H2 + O2 -> 2H2O."
+    spans = candidate_spans(text)
+
+    assert [span.source for span in spans] == ["H2O", "NaCl", "2H2 + O2 -> 2H2O"]
+    assert all(span.chemistry for span in spans)
+
+
+def test_chemistry_scanner_is_conservative_for_prose_and_single_elements() -> None:
+    assert candidate_runs("NASA and Office are ordinary prose.") == []
+    assert candidate_runs("Use A -> B to describe a mapping.") == []
+
+    spans = candidate_spans("Oxygen is O2.")
+    assert [span.source for span in spans] == ["O2"]
+    assert spans[0].chemistry is True
+
+
 def test_latex_delimited_candidate_spans() -> None:
     spans = candidate_spans("Inline $x^2 + 1$ and display $$y = 2$$.")
 

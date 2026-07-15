@@ -16,6 +16,12 @@ All notable changes to MathFmt are documented here.
 - Piecewise formulas support both `{expression, condition; ...}` and
   `cases(expression if condition; ...)`, rendering as a native Word left brace with
   aligned expression and condition columns.
+- Basic chemical formulas use upright standard element symbols, native subscripts,
+  parenthesized groups, and `(aq)/(g)/(l)/(s)` state suffixes.
+- Chemical reactions support `->`, `<->`, and `=>`, integer coefficients,
+  `+`-separated compounds, and optional arrow annotations such as `->[heat]`.
+- Scan reports identify chemistry candidates and conservatively leave ambiguous
+  single-element formulas unselected.
 
 ### Fixed
 - Validation coverage now parses reviewed candidates through `linear` when present,

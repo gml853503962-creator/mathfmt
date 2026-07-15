@@ -26,7 +26,20 @@ MAX_NESTING_DEPTH = 32
 
 # Math-structure element local-names — only these count toward nesting depth.
 _MATH_STRUCTURE = frozenset(
-    {"f", "rad", "sSup", "sSub", "sSubSup", "groupChr", "lim", "nary", "eqArr", "box", "borderBox"}
+    {
+        "f",
+        "rad",
+        "sSup",
+        "sSub",
+        "sSubSup",
+        "groupChr",
+        "limLow",
+        "limUpp",
+        "nary",
+        "eqArr",
+        "box",
+        "borderBox",
+    }
 )
 
 F_NS_MAP = {"m": M_NS}

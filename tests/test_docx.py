@@ -284,6 +284,44 @@ def test_scan_and_apply_piecewise_formulas_in_inline_and_display_contexts(tmp_pa
     assert all(len(row.xpath("./m:e", namespaces=NS)) == 2 for row in rows)
 
 
+def test_scan_and_apply_chemistry_with_conservative_single_element_selection(tmp_path: Path) -> None:
+    document = document_with_body(
+        """
+        <w:p><w:r><w:t>Water is H2O and salt is NaCl.</w:t></w:r></w:p>
+        <w:p><w:r><w:t>2H2 + O2 -> 2H2O</w:t></w:r></w:p>
+        <w:p><w:r><w:t>Oxygen label O2.</w:t></w:r></w:p>
+        """
+    )
+    source = make_docx(tmp_path / "source.docx", document_xml=document)
+    review = tmp_path / "review.json"
+    output = tmp_path / "output.docx"
+
+    report = scan_docx(source, review)
+    candidates = [candidate for candidate in report["candidates"] if candidate["part"] == "word/document.xml"]
+    by_source = {candidate["source"]: candidate for candidate in candidates}
+
+    assert {"H2O", "NaCl", "2H2 + O2 -> 2H2O", "O2"} == set(by_source)
+    assert all(by_source[source]["selected"] for source in ("H2O", "NaCl", "2H2 + O2 -> 2H2O"))
+    assert by_source["O2"]["confidence"] == "medium"
+    assert by_source["O2"]["selected"] is False
+    assert all(candidate["chemistry"] for candidate in candidates)
+
+    result = apply_docx(source, review, output, tmp_path / "result.json", xsl_path=None)
+
+    assert result["converted_count"] == 3
+    with zipfile.ZipFile(output) as archive:
+        root = etree.fromstring(archive.read("word/document.xml"))
+    paragraphs = root.xpath(".//w:p", namespaces=NS)
+    assert len(paragraphs[0].xpath("./m:oMath", namespaces=NS)) == 2
+    prefix = paragraphs[0].find("./w:r/w:t", namespaces=NS)
+    assert prefix is not None
+    assert prefix.get("{http://www.w3.org/XML/1998/namespace}space") == "preserve"
+    assert paragraphs[1].xpath("./m:oMathPara/m:oMath", namespaces=NS)
+    assert not paragraphs[2].xpath(".//m:oMath", namespaces=NS)
+    assert root.xpath(".//m:sSub", namespaces=NS)
+    assert root.xpath(".//m:rPr/m:sty[@m:val='p']", namespaces=NS)
+
+
 def test_scan_accepts_multiline_latex_delimited_formula(tmp_path: Path) -> None:
     formula = r"$$a = b \\ c = d$$"
     document = document_with_body(f"<w:p><w:r><w:t>{formula}</w:t></w:r></w:p>")

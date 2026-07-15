@@ -119,6 +119,8 @@ Open `candidates.json` and for each candidate:
 | `parse_status` | `"ok"` = parsable; `"review"` = failed, check `parse_error` |
 | `parse_error_details` | Structured parse location: column, nearby context, expected token, and found token when available |
 | `explicit` | `true` when detected from `$...$` or `$$...$$` delimiters |
+| `chemistry` | `true` when the conservative chemistry parser recognized the candidate |
+| `chemistry_kind` | `"formula"`, `"reaction"`, or `null` |
 | `multiline` | `true` when `linear` contains two or more reviewed formula lines |
 | `line_count` | Number of reviewed formula lines |
 
