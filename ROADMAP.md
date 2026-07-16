@@ -80,7 +80,7 @@ but timelines are best-effort — this is a single-maintainer project.
 - [x] Chemical formulas and reaction arrows
 - [x] Physics notation: bra-ket `⟨φ|ψ⟩`, tensor indices, partial derivatives `∂f/∂x`
 - [ ] Improved Unicode symbol mapping
-- [ ] User-extensible symbol aliases (e.g. custom shorthand → MathML)
+- [x] User-extensible symbol aliases (e.g. custom shorthand → MathML)
 
 ## v0.5.0 — Compatibility & Integration · 兼容性与集成
 

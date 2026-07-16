@@ -8,6 +8,7 @@ from pathlib import Path
 
 from lxml import etree
 
+from .aliases import AliasProfile, alias_profile_metadata, validate_review_alias_profile
 from .core import (
     M_NS,
     NS,
@@ -156,6 +157,7 @@ def _validate_omml_structure(
 def _validate_coverage(
     parts: dict[str, bytes],
     review: dict[str, object],
+    alias_profile: AliasProfile | None,
 ) -> dict[str, object]:
     result: dict[str, object] = {
         "candidates_total": 0,
@@ -194,7 +196,13 @@ def _validate_coverage(
 
         # Check parseable
         try:
-            mathml_lines = [formula_to_mathml(line) for line in split_multiline_formula(linear)]
+            mathml_lines = [
+                formula_to_mathml(
+                    line,
+                    aliases=alias_profile.aliases if alias_profile is not None else None,
+                )
+                for line in split_multiline_formula(linear)
+            ]
             result["parseable"] += 1
         except FormulaError as exc:
             result["failures"].append(
@@ -223,6 +231,7 @@ def _tag_signature(omath: etree._Element) -> int:
 def _validate_cross_backend(
     candidates: list[dict[str, object]],
     xsl_path: Path,
+    alias_profile: AliasProfile | None,
 ) -> dict[str, object] | None:
     try:
         transform = etree.XSLT(etree.parse(str(xsl_path)))
@@ -236,7 +245,13 @@ def _validate_cross_backend(
         source = str(candidate.get("source", ""))
         linear = str(candidate.get("linear", source))
         try:
-            mathml_lines = [formula_to_mathml(line) for line in split_multiline_formula(linear)]
+            mathml_lines = [
+                formula_to_mathml(
+                    line,
+                    aliases=alias_profile.aliases if alias_profile is not None else None,
+                )
+                for line in split_multiline_formula(linear)
+            ]
         except FormulaError:
             continue
 
@@ -271,6 +286,7 @@ def validate_docx(
     *,
     review_path: Path | None = None,
     xsl_path: Path | None = None,
+    alias_profile: AliasProfile | None = None,
 ) -> dict[str, object]:
     if input_path.suffix.lower() != ".docx":
         raise ValueError("Input must be a .docx file")
@@ -288,11 +304,13 @@ def validate_docx(
         "inputs": {
             "docx": str(input_path.resolve()),
             "review": str(review_path.resolve()) if review_path is not None else None,
+            "aliases": str(alias_profile.path) if alias_profile is not None else None,
         },
         "outputs": {},
         "options": {
             "backend": backend,
             "xsl": str(xsl_path.resolve()) if xsl_path is not None else None,
+            "alias_profile": alias_profile_metadata(alias_profile),
         },
         "summary": {
             "valid": True,
@@ -329,11 +347,16 @@ def validate_docx(
     # Layer 3: coverage (requires review)
     if review_path is not None:
         review = json.loads(review_path.read_text(encoding="utf-8"))
-        report["coverage"] = _validate_coverage(parts, review)
+        validate_review_alias_profile(review, alias_profile)
+        report["coverage"] = _validate_coverage(parts, review, alias_profile)
 
         # Layer 4: cross-backend (requires candidates + XSL)
         if xsl_path is not None:
-            report["cross_backend"] = _validate_cross_backend(review.get("candidates", []), xsl_path)
+            report["cross_backend"] = _validate_cross_backend(
+                review.get("candidates", []),
+                xsl_path,
+                alias_profile,
+            )
 
     # Determine overall validity
     has_issues = False

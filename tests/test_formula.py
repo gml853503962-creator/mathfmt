@@ -39,6 +39,24 @@ def test_mathml_namespace() -> None:
     assert etree.QName(root).namespace == MML_NS
 
 
+def test_custom_aliases_render_identifier_and_operator_symbols() -> None:
+    root = formula_to_mathml(
+        "R = ohm and x mapsTo y",
+        aliases={"ohm": "Ω", "and": "∧", "mapsTo": "↦"},
+    )
+
+    assert root.xpath(".//*[local-name()='mi' and text()='Ω']")
+    assert root.xpath(".//*[local-name()='mo' and text()='∧']")
+    assert root.xpath(".//*[local-name()='mo' and text()='↦']")
+
+
+def test_exact_alias_can_intentionally_override_chemical_detection() -> None:
+    root = formula_to_mathml("CO", aliases={"CO": "ℂ"})
+
+    assert "".join(root.itertext()) == "ℂ"
+    assert root.xpath(".//*[local-name()='mi' and text()='ℂ']")
+
+
 # ---------------------------------------------------------------------------
 # Expanded v0.2 parser coverage — integral, sum, matrix, vector, piecewise, limit
 # ---------------------------------------------------------------------------

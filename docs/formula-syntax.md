@@ -210,6 +210,33 @@ ASCII partial phrases, tensor indices, and bra-ket forms are reported at medium
 confidence so prose-like notation remains reviewable. Use `$...$` to mark any of
 these forms explicitly and select them at high confidence.
 
+### User-defined symbol aliases
+
+Use a JSON alias profile to render project-specific ASCII tokens as one Unicode
+mathematical symbol without editing MathFmt source code:
+
+```json
+{
+  "name": "engineering",
+  "aliases": {
+    "ohm": "Ω",
+    "mapsTo": "↦",
+    "complexes": "ℂ"
+  }
+}
+```
+
+Alias tokens must start with an ASCII letter and contain only ASCII letters or
+digits. Each value must be exactly one Unicode mathematical symbol. Core syntax
+names such as `sqrt`, `lim`, `sum`, `cases`, `partial`, `bra`, and `ket` are
+reserved and cannot be overridden. Invalid, duplicate, or unsupported entries stop
+the command with a clear error.
+
+Aliases affect parsing, not candidate discovery. Keep a custom standalone symbol
+inside `$...$`, or use it in a formula with a normal scanner anchor such as `=`.
+The same alias profile must be supplied to `scan`, `apply`, and review-aware
+`validate`; MathFmt compares the profile SHA-256 digest before conversion.
+
 ---
 
 ## 4. MathML Output Mapping
@@ -225,6 +252,7 @@ these forms explicitly and select them at high confidence.
 | `partial_derivative` | `m:mfrac` with `∂` numerator/denominator runs |
 | `subsup` tensor | `m:msubsup` |
 | `bra`, `ket`, `braket` | Angle/bar `m:mfenced` delimiters |
+| user alias | `m:mi` for letter-like symbols or `m:mo` for operator-like symbols |
 | `group` `(...)` | `m:mfenced` |
 | `sqrt` | `m:msqrt` |
 | `function` `sin(…)` | `m:mrow(m:mi(sin), m:mfenced(…))` |
@@ -352,6 +380,17 @@ Candidates are cleaned by removing:
 - Compact bra-ket syntax supports one separator (`<phi|psi>` or `⟨φ|ψ⟩`). Operator
   matrix elements such as `⟨φ|A|ψ⟩` are not yet recognized by the compact form;
   compose them with explicit `bra(...)` and `ket(...)` notation.
+
+### Symbol alias limitations
+
+- Alias profiles are JSON files with `name` and `aliases` fields; TOML is not
+  currently supported.
+- Alias values are one Unicode symbol, not replacement expressions or multi-symbol
+  macros.
+- Alias files do not create new scanner heuristics. Use explicit `$...$` delimiters
+  for standalone custom symbols.
+- A reviewed report that records aliases must be applied or validated with the same
+  profile contents; renaming or editing the profile changes its digest.
 
 ### Structural limitations
 

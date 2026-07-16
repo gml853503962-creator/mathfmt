@@ -19,3 +19,4 @@
 - Render adjacent `bra(...) ket(...)` as one bra-ket structure, not two concatenated half-delimiters; visual QA exposes the otherwise valid but misleading double-bar result.
 - In a sandboxed Windows shell, `gh auth status` can report a keyring token as invalid because Windows Credential Manager is inaccessible; rerun GitHub CLI checks and writes in the approved system-permission context before asking the user to authenticate again.
 - If the GitHub app returns `403 Resource not accessible by integration` when creating a PR, fall back to authenticated `gh pr create --draft` with the Markdown body stored in a real newline-preserving temp file.
+- Targeted pytest runs inherit the repository-wide coverage threshold and may exit nonzero even when every selected test passes; use the full suite for release validation or override pytest addopts only for focused diagnostics, and do not misclassify subset coverage as a product failure.

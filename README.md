@@ -70,6 +70,29 @@ Physics notation includes stacked partial derivatives (`partial f / partial x` o
 `∂f/∂x`), tensor indices such as `T_i^j`, and bra-ket forms including
 `<phi|psi>`, `⟨φ|ψ⟩`, and `bra(phi) ket(psi)`.
 
+Custom symbol aliases can be supplied with `--aliases`. A minimal JSON profile is:
+
+```json
+{
+  "name": "engineering",
+  "aliases": {
+    "ohm": "Ω",
+    "mapsTo": "↦"
+  }
+}
+```
+
+Pass the same profile to each review-first command:
+
+```bash
+mathfmt scan input.docx --report candidates.json --aliases symbols.json
+mathfmt apply input.docx --review candidates.json --output output.docx --report result.json --aliases symbols.json
+```
+
+Alias tokens may add one Unicode mathematical symbol but cannot replace MathFmt
+keywords such as `sqrt`, `lim`, `sum`, or `partial`. Reports record the profile
+name, absolute path, symbol count, and SHA-256 digest.
+
 ---
 
 ## Status

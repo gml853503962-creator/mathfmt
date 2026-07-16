@@ -26,6 +26,10 @@ All notable changes to MathFmt are documented here.
   subscript/superscript indices, and compact or function-style bra-ket forms.
 - Scan reports identify `partial_derivative`, `tensor`, and `braket` candidates;
   prose-like ASCII physics notation remains unselected for review by default.
+- JSON symbol alias profiles add user-defined ASCII token to Unicode math-symbol
+  mappings across `scan`, `apply`, `convert`, and `validate`.
+- Scan, conversion, and validation reports record alias profile metadata and reject
+  missing or changed profiles before reviewed formulas are processed.
 
 ### Fixed
 - Validation coverage now parses reviewed candidates through `linear` when present,

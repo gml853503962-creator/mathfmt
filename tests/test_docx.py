@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from lxml import etree
 
+from mathfmt.aliases import load_alias_profile
 from mathfmt.cli import main
 from mathfmt.core import M_NS, NS, W_NS, apply_docx, find_xsl, paragraph_text, scan_docx
 from tests.helpers import make_docx, make_fake_xsl
@@ -357,6 +358,77 @@ def test_scan_and_apply_physics_notation_with_reviewable_ambiguity(tmp_path: Pat
     assert len(root.xpath(".//m:f", namespaces=NS)) == 2
     assert len(root.xpath(".//m:sSubSup", namespaces=NS)) == 1
     assert len(root.xpath(".//m:d", namespaces=NS)) == 2
+
+
+def test_scan_and_apply_with_symbol_alias_profile(tmp_path: Path) -> None:
+    alias_path = tmp_path / "engineering.json"
+    alias_path.write_text(
+        json.dumps({"name": "engineering", "aliases": {"ohm": "Ω"}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    profile = load_alias_profile(alias_path)
+    source = make_docx(
+        tmp_path / "source.docx",
+        document_xml=document_with_body("<w:p><w:r><w:t>Resistance: $R = ohm$.</w:t></w:r></w:p>"),
+    )
+    review = tmp_path / "review.json"
+    output = tmp_path / "output.docx"
+    result_path = tmp_path / "result.json"
+
+    scanned = scan_docx(source, review, alias_profile=profile)
+    candidate = next(item for item in scanned["candidates"] if item["source"] == "$R = ohm$")
+
+    assert candidate["parse_status"] == "ok"
+    assert candidate["selected"] is True
+    assert scanned["profile"]["aliases"] == profile.metadata()
+
+    result = apply_docx(
+        source,
+        review,
+        output,
+        result_path,
+        xsl_path=None,
+        alias_profile=profile,
+    )
+
+    assert result["converted_count"] == 1
+    assert result["inputs"]["aliases"] == str(alias_path.resolve())
+    assert result["options"]["alias_profile"] == profile.metadata()
+    with zipfile.ZipFile(output) as archive:
+        root = etree.fromstring(archive.read("word/document.xml"))
+    assert "Ω" in "".join(root.xpath(".//m:t/text()", namespaces=NS))
+
+
+def test_apply_rejects_missing_or_mismatched_review_alias_profile(tmp_path: Path) -> None:
+    first_path = tmp_path / "first.json"
+    first_path.write_text(
+        json.dumps({"name": "first", "aliases": {"ohm": "Ω"}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    second_path = tmp_path / "second.json"
+    second_path.write_text(
+        json.dumps({"name": "second", "aliases": {"ohm": "Ω"}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    first = load_alias_profile(first_path)
+    second = load_alias_profile(second_path)
+    source = make_docx(
+        tmp_path / "source.docx",
+        document_xml=document_with_body("<w:p><w:r><w:t>$R = ohm$</w:t></w:r></w:p>"),
+    )
+    review = tmp_path / "review.json"
+    scan_docx(source, review, alias_profile=first)
+
+    with pytest.raises(ValueError, match="pass the same file"):
+        apply_docx(source, review, tmp_path / "none.docx", tmp_path / "none.json")
+    with pytest.raises(ValueError, match="does not match"):
+        apply_docx(
+            source,
+            review,
+            tmp_path / "wrong.docx",
+            tmp_path / "wrong.json",
+            alias_profile=second,
+        )
 
 
 def test_scan_accepts_multiline_latex_delimited_formula(tmp_path: Path) -> None:
