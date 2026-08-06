@@ -36,6 +36,8 @@ def doctor_data(explicit_xsl: Path | None = None) -> dict[str, object]:
         "platform": platform.platform(),
         "windows": os.name == "nt",
         "lxml": etree.LXML_VERSION,
+        "libxml2": etree.LIBXML_VERSION,
+        "libxslt": etree.LIBXSLT_VERSION,
         "xsl": None,
         "backend": "python",
         "ready": True,
@@ -207,6 +209,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"MathFmt: {data['mathfmt']}")
                 print(f"Python: {data['python']}")
                 print(f"Platform: {data['platform']}")
+                print(f"lxml: {'.'.join(str(part) for part in data['lxml'])}")
+                print(f"libxml2: {'.'.join(str(part) for part in data['libxml2'])}")
+                print(f"libxslt: {'.'.join(str(part) for part in data['libxslt'])}")
                 print(f"OMML backend: {data['backend']}")
                 if data["xsl"]:
                     print(f"MML2OMML.XSL: {data['xsl']}")

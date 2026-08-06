@@ -20,19 +20,21 @@ MathFmt is a Python CLI tool & library that converts plain-text math formulas (e
 
 ```
 MathFmt/
-├── src/mathfmt/           # Package source (8 files)
+├── src/mathfmt/           # Package source (10 files)
 │   ├── __init__.py        # Public API exports (9 symbols)
-│   ├── _version.py        # Single version source: "0.3.0"
+│   ├── _version.py        # Single version source: "0.4.0"
 │   ├── __main__.py        # `python -m mathfmt` entry point
 │   ├── cli.py             # argparse CLI: 6 subcommands
-│   ├── core.py            # Core engine (~950 lines): scan, parse, apply
+│   ├── aliases.py         # Validated user symbol-alias profiles
+│   ├── core.py            # Formula parser, scanner, and conversion pipeline
+│   ├── docxio.py          # Bounded ZIP I/O and hardened OOXML parsing
 │   ├── omml.py            # Pure-Python MathML→OMML converter
 │   ├── update.py          # Self-update checker (GitHub Releases API)
 │   └── validate.py        # Multi-layer DOCX/OMML validator
-├── tests/                 # pytest suite (8 test files)
+├── tests/                 # pytest unit and acceptance suite
 │   ├── helpers.py         # Synthetic DOCX builder, fake XSL, OMML template
 │   ├── test_cli.py, test_core.py, test_docx.py, test_formula.py
-│   ├── test_omml.py, test_skill.py, test_update.py, test_validate.py
+│   ├── test_docxio.py, test_omml.py, test_skill.py, test_update.py, test_validate.py
 ├── docs/
 │   ├── formula-syntax.md  # Complete grammar reference, preprocessing, MathML mapping
 │   └── workflow.md        # Install, scan/review/apply cycle, CI usage, troubleshooting

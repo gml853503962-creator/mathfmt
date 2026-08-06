@@ -72,3 +72,39 @@ jobs:
         with:
           name: python-package
           path: dist/
+
+  libreoffice-render:
+    name: LibreOffice render smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install MathFmt and render dependencies
+        run: |
+          python -m pip install -e ".[dev]"
+          sudo apt-get update
+          sudo apt-get install --yes libreoffice-writer poppler-utils
+      - name: Generate and convert the v0.4 acceptance document
+        run: |
+          mkdir -p work/libreoffice-qa
+          python -c "from pathlib import Path; from tests.acceptance import gen_docs; gen_docs.OUT = Path('work/libreoffice-qa'); gen_docs.doc06_v040()"
+          mathfmt scan work/libreoffice-qa/doc06_v040.docx --report work/libreoffice-qa/review.json
+          mathfmt apply work/libreoffice-qa/doc06_v040.docx --review work/libreoffice-qa/review.json --output work/libreoffice-qa/formatted.docx --report work/libreoffice-qa/result.json --strict
+          mathfmt validate work/libreoffice-qa/formatted.docx --review work/libreoffice-qa/review.json --report work/libreoffice-qa/validation.json
+      - name: Render and reject visible Word-only alignment markers
+        run: |
+          mkdir -p /tmp/mathfmt-lo-profile
+          libreoffice --headless -env:UserInstallation=file:///tmp/mathfmt-lo-profile --convert-to pdf --outdir work/libreoffice-qa work/libreoffice-qa/formatted.docx
+          pdftotext work/libreoffice-qa/formatted.pdf work/libreoffice-qa/formatted.txt
+          python -c "from pathlib import Path; text = Path('work/libreoffice-qa/formatted.txt').read_text(encoding='utf-8'); assert 'MathFmt v0.4 Visual Acceptance' in text; assert '&' not in text, text"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: libreoffice-render-smoke
+          path: |
+            work/libreoffice-qa/formatted.pdf
+            work/libreoffice-qa/result.json
+            work/libreoffice-qa/validation.json

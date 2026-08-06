@@ -86,6 +86,31 @@ def test_vector_notation() -> None:
     assert "mfenced" in tags
 
 
+def test_explicit_brace_grouping() -> None:
+    root = formula_to_mathml("{a+b}")
+
+    group = root.xpath(".//*[local-name()='mfenced']")[0]
+    assert group.get("open") == "{"
+    assert group.get("close") == "}"
+
+
+@pytest.mark.parametrize(
+    ("source", "operator"),
+    [
+        ("x ∈ ℝ", "∈"),
+        ("A ⊆ B", "⊆"),
+        ("A ∪ B", "∪"),
+        ("p ∧ q", "∧"),
+        ("u ⊗ v", "⊗"),
+        ("a ≡ b", "≡"),
+    ],
+)
+def test_common_unicode_number_sets_and_operators(source: str, operator: str) -> None:
+    root = formula_to_mathml(source)
+
+    assert root.xpath(f".//*[local-name()='mo' and text()='{operator}']")
+
+
 def test_piecewise_notation() -> None:
     root = formula_to_mathml("f(x) = {0, x<0; 1, x>=0}")
     tags = {etree.QName(e).localname for e in root.iter()}
@@ -144,19 +169,16 @@ def test_confidence_scoring_in_scan(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(reason="Heuristic scan may miss formulas without anchor operators (= ≠ ≤ etc.)")
-def test_scan_misses_formulas_without_anchors() -> None:
+def test_scan_deliberately_ignores_formula_like_text_without_anchors() -> None:
     from mathfmt.core import candidate_runs
 
-    assert len(candidate_runs("a b c d e f")) > 0
+    assert candidate_runs("a b c d e f") == []
 
 
-@pytest.mark.xfail(reason="Cross-paragraph formulas not merged — each paragraph scanned independently")
-def test_cross_paragraph_formula_detection() -> None:
+def test_newline_separated_formula_fragments_are_not_merged() -> None:
     from mathfmt.core import candidate_runs
 
-    candidates = candidate_runs("x = 1\n+ 2")
-    assert len(candidates) > 0
+    assert candidate_runs("x = 1\n+ 2") == []
 
 
 # ---------------------------------------------------------------------------

@@ -6,9 +6,7 @@ from __future__ import annotations
 import copy
 import json
 import re
-import shutil
 import unicodedata
-import zipfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +15,7 @@ from lxml import etree
 
 from ._version import __version__
 from .aliases import AliasProfile, alias_profile_metadata, validate_review_alias_profile
+from .docxio import inspect_docx, parse_xml_part, write_docx
 from .omml import combine_equation_array, mathml_to_omml_py
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -56,10 +55,11 @@ CODE_START_RE = re.compile(
     r"title\b|legend\b|hold\b|for\b|while\b|if\b|function\b|import\b|from\b)",
     re.IGNORECASE,
 )
-FORMULA_ANCHOR_RE = re.compile(r"(?:=|≠|<=|>=|!=|→|⇒|⇌|<->|->|±|\+/-|√|sqrt|lim|∫|∑|∏)")
+FORMULA_ANCHOR_RE = re.compile(r"(?:=|≠|<=|>=|!=|→|⇒|⇌|<->|->|±|\+/-|√|sqrt|lim|∫|∑|∏|∈|∉|⊂|⊆|⊃|⊇|∝|≡|≅)")
 MATH_CHARS = set(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "₀₁₂₃₄₅₆₇₈₉ₚᵥₜ⁰¹²³⁴⁵⁶⁷⁸⁹+-*/^=<>!~→⇒⇌±≠≤≥≈√∞ΔπΓ"
+    "₀₁₂₃₄₅₆₇₈₉ₚᵥₜ⁰¹²³⁴⁵⁶⁷⁸⁹+-*/^=<>!~→⇒⇌±≠≤≥≈≅√∞ΔπΓ"
+    "ℝℂℕℤℚℙℍℓ∈∉⊂⊆⊃⊇∪∩∧∨⊕⊗∝≡"
     "()[]{}⟨⟩.,'′˙¨·×÷_ \t∫∑∏∂;|"
     "ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩαβγδεζηθικλμνξοπρστυφχψω"
 )
@@ -328,8 +328,8 @@ TOKEN_RE = re.compile(
     r"(?P<MATRIX_CLOSE>\]\])|"
     r"(?P<NUMBER>\d+(?:[\.,]\d+)?)|"
     r"(?P<IF>if\b)|"
-    r"(?P<IDENT>sqrt|lim|exp|sin|cos|tan|Delta|pi|inf|e[pv]|pPAIR|DERV\d+|[A-Za-z][A-Za-z0-9]*|[Α-Ωα-ω∞∫∑∏])|"
-    r"(?P<OP><->|<=|>=|!=|<<|>>|~=|->|=>|\+/-|[+\-*/^=<>!±≠≤≥≈→⇒⇌·×÷_])|"
+    r"(?P<IDENT>sqrt|lim|exp|sin|cos|tan|Delta|pi|inf|e[pv]|pPAIR|DERV\d+|[A-Za-z][A-Za-z0-9]*|[Α-Ωα-ω∞∫∑∏ℝℂℕℤℚℙℍℓ])|"
+    r"(?P<OP><->|<=|>=|!=|<<|>>|~=|->|=>|\+/-|[+\-*/^=<>!±≠≤≥≈≅→⇒⇌·×÷_∈∉⊂⊆⊃⊇∪∩∧∨⊕⊗∝≡])|"
     r"(?P<LPAREN>[\(\[\{])|(?P<RPAREN>[\)\]\}])|(?P<COMMA>,)|(?P<SEMI>;)|"
     r"(?P<ELLIPSIS>…)"
     r")"
@@ -541,6 +541,15 @@ class Parser:
             "→",
             "⇒",
             "⇌",
+            "∈",
+            "∉",
+            "⊂",
+            "⊆",
+            "⊃",
+            "⊇",
+            "∝",
+            "≡",
+            "≅",
         }:
             op = self.advance().value
             node = Node("binary", op, (node, self.parse_add()))
@@ -548,7 +557,16 @@ class Parser:
 
     def parse_add(self) -> Node:
         node = self.parse_mul()
-        while self.current.kind == "OP" and self.current.value in {"+", "-", "±"}:
+        while self.current.kind == "OP" and self.current.value in {
+            "+",
+            "-",
+            "±",
+            "∪",
+            "∩",
+            "∧",
+            "∨",
+            "⊕",
+        }:
             op = self.advance().value
             node = Node("binary", op, (node, self.parse_mul()))
         return node
@@ -559,9 +577,10 @@ class Parser:
     def parse_mul(self) -> Node:
         node = self.parse_power()
         while True:
-            if self.current.kind == "OP" and self.current.value in {"*", "·", "×", "/", "÷"}:
+            if self.current.kind == "OP" and self.current.value in {"*", "·", "×", "/", "÷", "⊗"}:
                 op = self.advance().value
-                node = Node("binary", "/" if op in {"/", "÷"} else "*", (node, self.parse_power()))
+                normalized = "/" if op in {"/", "÷"} else "*" if op in {"*", "·", "×"} else op
+                node = Node("binary", normalized, (node, self.parse_power()))
             elif self.starts_atom() and self.current.kind != "MATRIX_OPEN":
                 right = self.parse_power()
                 if node.kind == "bra" and right.kind == "ket":
@@ -1369,8 +1388,8 @@ def likely_code(text: str) -> bool:
 
 def math_score(source: str) -> int:
     score = 0
-    score += 3 * len(re.findall(r"=|≠|<=|>=|!=|→|⇒|⇌|<->|->", source))
-    score += 2 * len(re.findall(r"[+*/^√±∞→⇒⇌]", source))
+    score += 3 * len(re.findall(r"=|≠|<=|>=|!=|→|⇒|⇌|<->|->|∈|∉|⊂|⊆|⊃|⊇|∝|≡|≅", source))
+    score += 2 * len(re.findall(r"[+*/^√±∞→⇒⇌∪∩∧∨⊕⊗]", source))
     score += len(re.findall(r"[A-Za-z]\w*\([^)]*\)", source))
     score += len(re.findall(r"\d", source)) // 2
     if any(
@@ -1579,13 +1598,6 @@ def candidate_runs(text: str) -> list[tuple[int, int, str]]:
     return [(span.start, span.end, span.source) for span in candidate_spans(text)]
 
 
-def inspect_docx(input_path: Path) -> tuple[list[zipfile.ZipInfo], dict[str, bytes]]:
-    with zipfile.ZipFile(input_path, "r") as archive:
-        infos = archive.infolist()
-        data = {info.filename: archive.read(info.filename) for info in infos}
-    return infos, data
-
-
 def scan_docx(
     input_path: Path,
     report_path: Path,
@@ -1621,7 +1633,7 @@ def scan_docx(
     for part_name, raw in parts.items():
         if not TARGET_PART_RE.match(part_name):
             continue
-        root = etree.fromstring(raw)
+        root = parse_xml_part(raw, part_name=part_name)
         paragraphs = root.xpath(".//w:p", namespaces=NS)
         for paragraph_index, paragraph in enumerate(paragraphs):
             summary["paragraphs"] += 1
@@ -1647,7 +1659,7 @@ def scan_docx(
                 linear = span.linear or source
                 display = span.display or text.strip() == source.strip()
                 score = math_score(linear)
-                has_relation = bool(re.search(r"[=≠≤≥≈→⇒⇌]|<->|->", linear))
+                has_relation = bool(re.search(r"[=≠≤≥≈≅→⇒⇌∈∉⊂⊆⊃⊇∝≡]|<->|->", linear))
                 has_func = bool(re.search(r"\([^)]*\)", linear))
                 chemistry_kind: str | None = None
                 chemistry_strong = False
@@ -2039,7 +2051,7 @@ def apply_docx(
                     )
                 )
             continue
-        root = etree.fromstring(parts[part_name])
+        root = parse_xml_part(parts[part_name], part_name=part_name)
         paragraphs = root.xpath(".//w:p", namespaces=NS)
         if paragraph_index >= len(paragraphs):
             for candidate in group:
@@ -2140,16 +2152,8 @@ def apply_docx(
     output_written = False
     strict_failed = strict and bool(skipped)
     if not dry_run and not strict_failed:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = output_path.with_suffix(output_path.suffix + ".tmp")
-        try:
-            with zipfile.ZipFile(tmp_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-                for info in infos:
-                    archive.writestr(info, parts[info.filename])
-            shutil.move(str(tmp_path), str(output_path))
-            output_written = True
-        finally:
-            tmp_path.unlink(missing_ok=True)
+        write_docx(output_path, infos, parts)
+        output_written = True
     result["converted_count"] = len(converted)
     result["skipped_count"] = len(skipped)
     summary = result["summary"]

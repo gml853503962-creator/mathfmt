@@ -507,15 +507,15 @@ def test_apply_multiline_formulas_in_inline_display_and_table_contexts(tmp_path:
     assert all(item["multiline"] for item in result["formulas"])
     with zipfile.ZipFile(output) as archive:
         root = etree.fromstring(archive.read("word/document.xml"))
-    arrays = root.xpath(".//m:eqArr", namespaces=NS)
+    arrays = root.xpath(".//m:m[m:mPr/m:mcs]", namespaces=NS)
     assert len(arrays) == 3
-    assert all(len(array.xpath("./m:e", namespaces=NS)) == 2 for array in arrays)
+    assert all(len(array.xpath("./m:mr", namespaces=NS)) == 2 for array in arrays)
     paragraphs = root.xpath(".//w:p", namespaces=NS)
     assert paragraph_text(paragraphs[0]) == "Before  after"
-    assert paragraphs[0].xpath("./m:oMath/m:eqArr", namespaces=NS)
-    assert paragraphs[1].xpath("./m:oMathPara/m:oMath/m:eqArr", namespaces=NS)
+    assert paragraphs[0].xpath("./m:oMath/m:m", namespaces=NS)
+    assert paragraphs[1].xpath("./m:oMathPara/m:oMath/m:m", namespaces=NS)
     assert paragraphs[2].xpath("ancestor::w:tc", namespaces=NS)
-    assert paragraphs[2].xpath("./m:oMath/m:eqArr", namespaces=NS)
+    assert paragraphs[2].xpath("./m:oMath/m:m", namespaces=NS)
     assert paragraphs[2].xpath(".//w:sz[@w:val='16']", namespaces=NS)
 
 

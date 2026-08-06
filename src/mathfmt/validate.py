@@ -17,10 +17,10 @@ from .core import (
     _error_details,
     _mathml_to_omml_xsl,
     formula_to_mathml,
-    inspect_docx,
     paragraph_text,
     split_multiline_formula,
 )
+from .docxio import DocxSecurityError, inspect_docx, parse_xml_part
 from .omml import mathml_to_omml_py
 
 MAX_NESTING_DEPTH = 32
@@ -61,8 +61,8 @@ def _validate_package(
         if not TARGET_PART_RE.match(name) and name != "word/document.xml":
             continue
         try:
-            root = etree.fromstring(raw)
-        except etree.XMLSyntaxError as exc:
+            root = parse_xml_part(raw, part_name=name)
+        except (etree.XMLSyntaxError, DocxSecurityError) as exc:
             result["xml_errors"].append({"part": name, "error": str(exc)})
             continue
         if name == "word/document.xml":
@@ -101,8 +101,8 @@ def _validate_omml_structure(
         if not TARGET_PART_RE.match(name) and name != "word/document.xml":
             continue
         try:
-            root = etree.fromstring(raw)
-        except etree.XMLSyntaxError:
+            root = parse_xml_part(raw, part_name=name)
+        except (etree.XMLSyntaxError, DocxSecurityError):
             continue
 
         equations = root.xpath(".//m:oMath", namespaces=NS)
@@ -182,7 +182,7 @@ def _validate_coverage(
         # Check source matches DOCX
         if raw is not None:
             try:
-                root = etree.fromstring(raw)
+                root = parse_xml_part(raw, part_name=part_name)
                 paragraphs = root.xpath(".//w:p", namespaces=NS)
                 idx = int(candidate.get("paragraph_index", -1))
                 if 0 <= idx < len(paragraphs):
@@ -328,9 +328,9 @@ def validate_docx(
     # Layer 1: package
     try:
         _, parts = inspect_docx(input_path)
-    except zipfile.BadZipFile:
+    except (zipfile.BadZipFile, DocxSecurityError) as exc:
         report["valid"] = False
-        report["package"] = {"valid_zip": False}
+        report["package"] = {"valid_zip": False, "error": str(exc)}
         report["summary"] = {
             "valid": False,
             "errors": 1,

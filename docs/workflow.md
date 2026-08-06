@@ -327,6 +327,11 @@ Use `mathfmt validate` to check DOCX correctness without opening Word:
 mathfmt validate output.docx --report validation.json
 ```
 
+The repository CI also generates the v0.4 acceptance document, converts it with the
+built-in backend, renders it through LibreOffice, and checks the resulting PDF for
+visible Word-only alignment markers. This complements structural validation with a
+repeatable cross-application rendering smoke test.
+
 When validating formula coverage from a review created with aliases, pass the same
 profile:
 

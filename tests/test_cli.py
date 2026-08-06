@@ -255,9 +255,17 @@ def test_apply_strict_returns_failure_without_writing_output(
 def test_doctor_command_text_and_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     xsl = make_fake_xsl(tmp_path / "fake.xsl")
     assert cli.main(["doctor", "--xsl", str(xsl)]) == 0
-    assert "Ready: yes" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "Ready: yes" in output
+    assert "lxml:" in output
+    assert "libxml2:" in output
+    assert "libxslt:" in output
     assert cli.main(["doctor", "--xsl", str(xsl), "--json"]) == 0
-    assert json.loads(capsys.readouterr().out)["ready"] is True
+    data = json.loads(capsys.readouterr().out)
+    assert data["ready"] is True
+    assert data["lxml"]
+    assert data["libxml2"]
+    assert data["libxslt"]
 
 
 def test_cli_reports_missing_input(capsys: pytest.CaptureFixture[str]) -> None:
