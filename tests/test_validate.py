@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from lxml import etree
 
+from mathfmt.aliases import load_alias_profile
 from mathfmt.cli import main
 from mathfmt.core import M_NS, find_xsl, formula_to_mathml, qname
 from mathfmt.omml import mathml_to_omml_py
@@ -295,6 +296,52 @@ def test_coverage_layer_flags_unparseable_candidates(tmp_path: Path) -> None:
     report = validate_docx(source, review_path=review)
     assert report["coverage"]["failures"]
     assert report["coverage"]["failures"][0]["error_details"]["column"] >= 1
+
+
+def test_validation_uses_and_reports_alias_profile(tmp_path: Path) -> None:
+    alias_path = tmp_path / "engineering.json"
+    alias_path.write_text(
+        json.dumps({"name": "engineering", "aliases": {"ohm": "Ω"}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    profile = load_alias_profile(alias_path)
+    source = make_docx_with_omml(
+        tmp_path / "aliases.docx",
+        content=f"<w:p>{omath_for('x = 1')}</w:p>",
+    )
+    review = tmp_path / "review.json"
+    review.write_text(
+        json.dumps(
+            {
+                "profile": {"aliases": profile.metadata()},
+                "candidates": [
+                    {
+                        "id": "a1",
+                        "parse_status": "ok",
+                        "source": "R = ohm",
+                        "linear": "R = ohm",
+                        "part": "word/document.xml",
+                        "paragraph_index": 0,
+                        "start": 0,
+                        "end": 7,
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    report = validate_docx(source, review_path=review, alias_profile=profile)
+
+    assert report["valid"] is True
+    assert report["coverage"]["parseable"] == 1
+    assert report["coverage"]["omml_produced"] == 1
+    assert report["inputs"]["aliases"] == str(alias_path.resolve())
+    assert report["options"]["alias_profile"] == profile.metadata()
+
+    with pytest.raises(ValueError, match="pass the same file"):
+        validate_docx(source, review_path=review)
 
 
 # -- CLI integration -----------------------------------------------------------

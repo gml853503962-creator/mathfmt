@@ -4,14 +4,16 @@ All notable changes to MathFmt are documented here.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-06
+
 ### Added
 - LaTeX-style DOCX text delimiters: `$...$` scans as a high-confidence inline
   formula, and `$$...$$` scans as a high-confidence display formula.
 - Scan reports now include `explicit: true` for delimiter-detected formulas while
   preserving delimiter text in `source` and parsing delimiter-free `linear`.
 - Reviewed multiline formulas support `\\` and real line-break separators, preserve
-  row order, and render as native Word `m:eqArr` equation arrays aligned at their
-  first relation symbol.
+  row order, and use a cross-application OMML alignment matrix at the first relation
+  symbol, falling back to `m:eqArr` for lines without a common relation.
 - Scan and conversion reports include multiline line counts and layout metadata.
 - Piecewise formulas support both `{expression, condition; ...}` and
   `cases(expression if condition; ...)`, rendering as a native Word left brace with
@@ -26,6 +28,15 @@ All notable changes to MathFmt are documented here.
   subscript/superscript indices, and compact or function-style bra-ket forms.
 - Scan reports identify `partial_derivative`, `tensor`, and `braket` candidates;
   prose-like ASCII physics notation remains unselected for review by default.
+- JSON symbol alias profiles add user-defined ASCII token to Unicode math-symbol
+  mappings across `scan`, `apply`, `convert`, and `validate`.
+- Scan, conversion, and validation reports record alias profile metadata and reject
+  missing or changed profiles before reviewed formulas are processed.
+- Common Unicode number sets and set/relation operators are accepted directly.
+- DOCX package reads enforce entry-count, uncompressed-size, compression-ratio,
+  duplicate-member, and encryption limits before extracting ZIP members.
+- OOXML parts are parsed without DTD loading, entity expansion, or network access.
+- `mathfmt doctor` reports lxml, libxml2, and libxslt versions in text and JSON output.
 
 ### Fixed
 - Validation coverage now parses reviewed candidates through `linear` when present,
@@ -36,6 +47,10 @@ All notable changes to MathFmt are documented here.
   branch separator.
 - Explicit `$...$` and `$$...$$` candidates remain scannable when their semicolon
   syntax would otherwise resemble a code paragraph.
+- Formula syntax documentation now matches the supported integral, summation,
+  matrix, vector, limit, brace-grouping, and Unicode forms.
+- Relation-aligned multiline equations no longer expose Word's literal `&` alignment
+  marker when rendered by LibreOffice.
 
 ## [0.3.0] - 2026-06-25
 

@@ -14,9 +14,9 @@ but timelines are best-effort — this is a single-maintainer project.
 - [x] Bilingual Quick Start in README (`pip install`, `doctor`, basic conversion)
 - [x] `examples/` directory with a walkthrough for new users
 - [x] `ROADMAP.md` (this file)
-- [ ] Improve `mathfmt doctor` output — show versions of key dependencies
+- [x] Improve `mathfmt doctor` output — show versions of key dependencies
 - [ ] Fix any crash-on-edge-input bugs reported by users
-- [ ] Expand test coverage for boundary cases (empty runs, malformed XML, Unicode edge cases)
+- [x] Expand test coverage for boundary cases (empty runs, malformed XML, Unicode edge cases)
 - [ ] Triage and fix issues labeled `bug` on GitHub
 
 ## v0.3.0 — Conversion Reports & Safety · 转换报告与安全
@@ -69,27 +69,27 @@ but timelines are best-effort — this is a single-maintainer project.
 - Documentation includes one minimal quick example and one production review-flow
   example.
 
-## v0.4.0 — Formula Coverage · 公式覆盖
+## v0.4.0 — Formula Coverage · 公式覆盖 (released 2026-08-06)
 
 **Focus:** Handle more real-world formula patterns.
 
 - [x] LaTeX-style explicit delimiters: `$...$` and `$$...$$` in DOCX text
-- [ ] Nested bracketed constructs: `{ ... }` for explicit grouping
+- [x] Nested bracketed constructs: `{ ... }` for explicit grouping
 - [x] Multi-line equations and aligned environments (`a = b \\ c = d`)
 - [x] Piecewise and `cases` environments
 - [x] Chemical formulas and reaction arrows
 - [x] Physics notation: bra-ket `⟨φ|ψ⟩`, tensor indices, partial derivatives `∂f/∂x`
-- [ ] Improved Unicode symbol mapping
-- [ ] User-extensible symbol aliases (e.g. custom shorthand → MathML)
+- [x] Improved Unicode symbol mapping for common number sets and relation/set operators
+- [x] User-extensible symbol aliases (e.g. custom shorthand → MathML)
 
 ## v0.5.0 — Compatibility & Integration · 兼容性与集成
 
 **Focus:** Work well in more environments and toolchains.
 
 - [ ] WPS Office compatibility testing (WPS Writer on Windows/Linux)
-- [ ] LibreOffice Writer compatibility testing (ODT → DOCX roundtrip)
+- [x] LibreOffice Writer compatibility testing and PDF render smoke test
 - [ ] Batch processing: `mathfmt convert ./folder/*.docx`
-- [ ] GitHub Actions recipe in docs for CI integration
+- [x] GitHub Actions render recipe for CI integration
 
 ## v1.0.0 — Stable API · 稳定 API
 

@@ -33,7 +33,8 @@ Requirements: Python ≥ 3.10. The only runtime dependency is `lxml`.
 mathfmt doctor
 ```
 
-Prints Python version, backend availability, and platform info — useful before filing a bug report.
+Prints MathFmt, Python, lxml/libxml2/libxslt versions, backend availability, and platform info —
+useful before filing a bug report.
 
 ### Convert a document · 转换文档
 
@@ -70,11 +71,35 @@ Physics notation includes stacked partial derivatives (`partial f / partial x` o
 `∂f/∂x`), tensor indices such as `T_i^j`, and bra-ket forms including
 `<phi|psi>`, `⟨φ|ψ⟩`, and `bra(phi) ket(psi)`.
 
+Custom symbol aliases can be supplied with `--aliases`. A minimal JSON profile is:
+
+```json
+{
+  "name": "engineering",
+  "aliases": {
+    "ohm": "Ω",
+    "mapsTo": "↦"
+  }
+}
+```
+
+Pass the same profile to each review-first command:
+
+```bash
+mathfmt scan input.docx --report candidates.json --aliases symbols.json
+mathfmt apply input.docx --review candidates.json --output output.docx --report result.json --aliases symbols.json
+```
+
+Alias tokens may add one Unicode mathematical symbol but cannot replace MathFmt
+keywords such as `sqrt`, `lim`, `sum`, or `partial`. Reports record the profile
+name, absolute path, symbol count, and SHA-256 digest.
+
 ---
 
 ## Status
 
-**Beta (v0.3.0).** Cross-platform OMML, confidence scoring, expanded formula support, self-update, parser fixes, and structured report/safety workflows.
+**Beta (v0.4.0).** Cross-platform OMML, structured safety reports, explicit LaTeX delimiters,
+aligned and piecewise equations, chemistry and physics notation, and custom symbol aliases.
 
 ---
 
@@ -152,7 +177,7 @@ pip install --upgrade mathfmt
 | **0.2.2** (2026-06-21) | CI/Ruff 修复；缓存崩溃修复；退出码修正；验证报告版本 |
 | **0.2.3** (2026-06-22) | Parser 修复（省略号/阶乘/大型算子/边界/深度）；文档与示例完善 |
 | **0.3.0** (2026-06-25) | 结构化转换报告；dry-run 预览；严格模式；失败公式提示；更好的错误信息 |
-| **0.4.0** (planned) | LaTeX 分隔符；多行对齐；分段函数；基础化学式与反应箭头 |
+| **0.4.0** (2026-08-06) | LaTeX 分隔符；多行对齐；分段函数；化学与物理记号；自定义符号别名 |
 | **1.0.0** (2027) | 稳定 API；长期支持 |
 
 ### 更多文档
@@ -247,7 +272,7 @@ pip install --upgrade mathfmt
 | **0.2.2** (2026-06-21) | CI/Ruff fixes; cache crash fix; exit code correction; validate version |
 | **0.2.3** (2026-06-22) | Parser fixes (ellipsis, factorial, n-ary, 1(t), x_bar, boundary); depth validation; docs & examples |
 | **0.3.0** (2026-06-25) | Structured conversion reports; dry-run preview; strict mode; failed-formula warnings; better errors |
-| **0.4.0** (planned) | LaTeX delimiters, aligned multiline equations, piecewise cases, and basic chemistry notation |
+| **0.4.0** (2026-08-06) | LaTeX delimiters, aligned and piecewise equations, chemistry and physics notation, and symbol aliases |
 | **1.0.0** (2027) | Stable API; long-term support |
 
 ### Further Reading

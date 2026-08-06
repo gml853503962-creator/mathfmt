@@ -1,4 +1,4 @@
-"""Automated acceptance: scan → convert → validate for all 5 real-world test DOCX."""
+"""Automated acceptance: scan → convert → validate for all real-world test DOCX."""
 
 from __future__ import annotations
 
@@ -31,6 +31,7 @@ def acceptance_docs(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]
         ("doc03", gen_docs.doc03_mixed),
         ("doc04", gen_docs.doc04_edge_cases),
         ("doc05", gen_docs.doc05_textbook),
+        ("doc06", gen_docs.doc06_v040),
     ]:
         path = builder()
         paths[name] = path
@@ -68,7 +69,7 @@ def _scan_convert_validate(docx_path: Path, tmp_path: Path) -> dict:
 
 @pytest.mark.parametrize(
     "doc_name",
-    ["doc01", "doc02", "doc03", "doc04", "doc05"],
+    ["doc01", "doc02", "doc03", "doc04", "doc05", "doc06"],
 )
 def test_acceptance_scan_convert_validate(
     doc_name: str, acceptance_docs: dict[str, Path], tmp_path: Path
@@ -104,6 +105,11 @@ def test_acceptance_key_formulas_parse(acceptance_docs: dict[str, Path], tmp_pat
         "int(cos(x)) dx = sin(x) + C",  # C retention
         "1(t)",  # step function
         "s = sqrt((1/(n-1)) sum(i=1, n) (x_i - x_bar)^2)",  # nested standard deviation
+        "$x ∈ ℝ$",  # Unicode number set and relation
+        "$f(x) = {0, x<0; 1, x>=0}$",  # piecewise
+        r"$$a = b \\ c = d$$",  # aligned multiline
+        "$2H2 + O2 ->[heat] 2H2O$",  # chemistry
+        "$∂f/∂x = 2x$",  # physics
     ]
     for target in targets:
         assert all_parse_status.get(target) == "ok", (

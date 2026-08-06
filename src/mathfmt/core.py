@@ -6,15 +6,16 @@ from __future__ import annotations
 import copy
 import json
 import re
-import shutil
-import zipfile
-from collections.abc import Sequence
+import unicodedata
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from lxml import etree
 
 from ._version import __version__
+from .aliases import AliasProfile, alias_profile_metadata, validate_review_alias_profile
+from .docxio import inspect_docx, parse_xml_part, write_docx
 from .omml import combine_equation_array, mathml_to_omml_py
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -54,10 +55,11 @@ CODE_START_RE = re.compile(
     r"title\b|legend\b|hold\b|for\b|while\b|if\b|function\b|import\b|from\b)",
     re.IGNORECASE,
 )
-FORMULA_ANCHOR_RE = re.compile(r"(?:=|≠|<=|>=|!=|→|⇒|⇌|<->|->|±|\+/-|√|sqrt|lim|∫|∑|∏)")
+FORMULA_ANCHOR_RE = re.compile(r"(?:=|≠|<=|>=|!=|→|⇒|⇌|<->|->|±|\+/-|√|sqrt|lim|∫|∑|∏|∈|∉|⊂|⊆|⊃|⊇|∝|≡|≅)")
 MATH_CHARS = set(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    "₀₁₂₃₄₅₆₇₈₉ₚᵥₜ⁰¹²³⁴⁵⁶⁷⁸⁹+-*/^=<>!~→⇒⇌±≠≤≥≈√∞ΔπΓ"
+    "₀₁₂₃₄₅₆₇₈₉ₚᵥₜ⁰¹²³⁴⁵⁶⁷⁸⁹+-*/^=<>!~→⇒⇌±≠≤≥≈≅√∞ΔπΓ"
+    "ℝℂℕℤℚℙℍℓ∈∉⊂⊆⊃⊇∪∩∧∨⊕⊗∝≡"
     "()[]{}⟨⟩.,'′˙¨·×÷_ \t∫∑∏∂;|"
     "ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩαβγδεζηθικλμνξοπρστυφχψω"
 )
@@ -326,8 +328,8 @@ TOKEN_RE = re.compile(
     r"(?P<MATRIX_CLOSE>\]\])|"
     r"(?P<NUMBER>\d+(?:[\.,]\d+)?)|"
     r"(?P<IF>if\b)|"
-    r"(?P<IDENT>sqrt|lim|exp|sin|cos|tan|Delta|pi|inf|e[pv]|pPAIR|DERV\d+|[A-Za-z][A-Za-z0-9]*|[Α-Ωα-ω∞∫∑∏])|"
-    r"(?P<OP><->|<=|>=|!=|<<|>>|~=|->|=>|\+/-|[+\-*/^=<>!±≠≤≥≈→⇒⇌·×÷_])|"
+    r"(?P<IDENT>sqrt|lim|exp|sin|cos|tan|Delta|pi|inf|e[pv]|pPAIR|DERV\d+|[A-Za-z][A-Za-z0-9]*|[Α-Ωα-ω∞∫∑∏ℝℂℕℤℚℙℍℓ])|"
+    r"(?P<OP><->|<=|>=|!=|<<|>>|~=|->|=>|\+/-|[+\-*/^=<>!±≠≤≥≈≅→⇒⇌·×÷_∈∉⊂⊆⊃⊇∪∩∧∨⊕⊗∝≡])|"
     r"(?P<LPAREN>[\(\[\{])|(?P<RPAREN>[\)\]\}])|(?P<COMMA>,)|(?P<SEMI>;)|"
     r"(?P<ELLIPSIS>…)"
     r")"
@@ -440,10 +442,17 @@ def _serialize_ast(node: Node) -> str:
 
 
 class Parser:
-    def __init__(self, tokens: Sequence[Token], derivatives: dict[str, tuple[int, str, str]], source: str):
+    def __init__(
+        self,
+        tokens: Sequence[Token],
+        derivatives: dict[str, tuple[int, str, str]],
+        source: str,
+        aliases: Mapping[str, str] | None = None,
+    ):
         self.tokens = tokens
         self.derivatives = derivatives
         self.source = source
+        self.aliases = aliases or {}
         self.index = 0
 
     @property
@@ -532,6 +541,15 @@ class Parser:
             "→",
             "⇒",
             "⇌",
+            "∈",
+            "∉",
+            "⊂",
+            "⊆",
+            "⊃",
+            "⊇",
+            "∝",
+            "≡",
+            "≅",
         }:
             op = self.advance().value
             node = Node("binary", op, (node, self.parse_add()))
@@ -539,7 +557,16 @@ class Parser:
 
     def parse_add(self) -> Node:
         node = self.parse_mul()
-        while self.current.kind == "OP" and self.current.value in {"+", "-", "±"}:
+        while self.current.kind == "OP" and self.current.value in {
+            "+",
+            "-",
+            "±",
+            "∪",
+            "∩",
+            "∧",
+            "∨",
+            "⊕",
+        }:
             op = self.advance().value
             node = Node("binary", op, (node, self.parse_mul()))
         return node
@@ -550,9 +577,10 @@ class Parser:
     def parse_mul(self) -> Node:
         node = self.parse_power()
         while True:
-            if self.current.kind == "OP" and self.current.value in {"*", "·", "×", "/", "÷"}:
+            if self.current.kind == "OP" and self.current.value in {"*", "·", "×", "/", "÷", "⊗"}:
                 op = self.advance().value
-                node = Node("binary", "/" if op in {"/", "÷"} else "*", (node, self.parse_power()))
+                normalized = "/" if op in {"/", "÷"} else "*" if op in {"*", "·", "×"} else op
+                node = Node("binary", normalized, (node, self.parse_power()))
             elif self.starts_atom() and self.current.kind != "MATRIX_OPEN":
                 right = self.parse_power()
                 if node.kind == "bra" and right.kind == "ket":
@@ -710,6 +738,8 @@ class Parser:
                     children=(Node("identifier", variable), Node("identifier", argument)),
                     meta={"order": str(order)},
                 )
+            if name in self.aliases:
+                return Node("alias", self.aliases[name])
             if name in {"∫", "∏", "∑"}:
                 return self._parse_nary(name)
             if name in {"int", "sum", "prod"}:
@@ -831,6 +861,10 @@ def node_to_mathml(node: Node) -> etree._Element:
         return mml("mn", node.value or "")
     if node.kind == "identifier":
         return identifier_mathml(node.value or "")
+    if node.kind == "alias":
+        value = node.value or ""
+        element = "mi" if value and unicodedata.category(value).startswith("L") else "mo"
+        return mml(element, value)
     if node.kind == "derivative":
         return derivative_mathml(node)
     if node.kind == "partial_derivative":
@@ -1268,12 +1302,16 @@ def _try_chemistry_mathml(source: str) -> tuple[etree._Element, str, bool] | Non
     return root, "formula", strong
 
 
-def formula_to_mathml(source: str) -> etree._Element:
-    chemistry = _try_chemistry_mathml(source)
-    if chemistry is not None:
-        return chemistry[0]
+def formula_to_mathml(
+    source: str,
+    aliases: Mapping[str, str] | None = None,
+) -> etree._Element:
+    if not (aliases and source.strip() in aliases):
+        chemistry = _try_chemistry_mathml(source)
+        if chemistry is not None:
+            return chemistry[0]
     normalized, derivatives = preprocess_formula(source)
-    ast = Parser(tokenize(normalized), derivatives, normalized).parse()
+    ast = Parser(tokenize(normalized), derivatives, normalized, aliases).parse()
     root = mml("math", display="inline", nsmap={None: MML_NS})
     root.append(node_to_mathml(ast))
     return root
@@ -1350,8 +1388,8 @@ def likely_code(text: str) -> bool:
 
 def math_score(source: str) -> int:
     score = 0
-    score += 3 * len(re.findall(r"=|≠|<=|>=|!=|→|⇒|⇌|<->|->", source))
-    score += 2 * len(re.findall(r"[+*/^√±∞→⇒⇌]", source))
+    score += 3 * len(re.findall(r"=|≠|<=|>=|!=|→|⇒|⇌|<->|->|∈|∉|⊂|⊆|⊃|⊇|∝|≡|≅", source))
+    score += 2 * len(re.findall(r"[+*/^√±∞→⇒⇌∪∩∧∨⊕⊗]", source))
     score += len(re.findall(r"[A-Za-z]\w*\([^)]*\)", source))
     score += len(re.findall(r"\d", source)) // 2
     if any(
@@ -1560,14 +1598,11 @@ def candidate_runs(text: str) -> list[tuple[int, int, str]]:
     return [(span.start, span.end, span.source) for span in candidate_spans(text)]
 
 
-def inspect_docx(input_path: Path) -> tuple[list[zipfile.ZipInfo], dict[str, bytes]]:
-    with zipfile.ZipFile(input_path, "r") as archive:
-        infos = archive.infolist()
-        data = {info.filename: archive.read(info.filename) for info in infos}
-    return infos, data
-
-
-def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
+def scan_docx(
+    input_path: Path,
+    report_path: Path,
+    alias_profile: AliasProfile | None = None,
+) -> dict[str, object]:
     if input_path.suffix.lower() != ".docx":
         raise ValueError("Input must be a .docx file")
     if not input_path.is_file():
@@ -1576,7 +1611,12 @@ def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
     report: dict[str, object] = {
         "schema_version": 2,
         "input": str(input_path.resolve()),
-        "profile": {"derivatives": "fraction", "unit_step": "u(t)", "output": "native_word_omml"},
+        "profile": {
+            "derivatives": "fraction",
+            "unit_step": "u(t)",
+            "output": "native_word_omml",
+            "aliases": alias_profile_metadata(alias_profile),
+        },
         "summary": {
             "paragraphs": 0,
             "candidates": 0,
@@ -1593,7 +1633,7 @@ def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
     for part_name, raw in parts.items():
         if not TARGET_PART_RE.match(part_name):
             continue
-        root = etree.fromstring(raw)
+        root = parse_xml_part(raw, part_name=part_name)
         paragraphs = root.xpath(".//w:p", namespaces=NS)
         for paragraph_index, paragraph in enumerate(paragraphs):
             summary["paragraphs"] += 1
@@ -1619,7 +1659,7 @@ def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
                 linear = span.linear or source
                 display = span.display or text.strip() == source.strip()
                 score = math_score(linear)
-                has_relation = bool(re.search(r"[=≠≤≥≈→⇒⇌]|<->|->", linear))
+                has_relation = bool(re.search(r"[=≠≤≥≈≅→⇒⇌∈∉⊂⊆⊃⊇∝≡]|<->|->", linear))
                 has_func = bool(re.search(r"\([^)]*\)", linear))
                 chemistry_kind: str | None = None
                 chemistry_strong = False
@@ -1681,7 +1721,10 @@ def scan_docx(input_path: Path, report_path: Path) -> dict[str, object]:
                 try:
                     formula_lines = split_multiline_formula(linear)
                     for formula_line in formula_lines:
-                        formula_to_mathml(formula_line)
+                        formula_to_mathml(
+                            formula_line,
+                            aliases=alias_profile.aliases if alias_profile is not None else None,
+                        )
                     candidate["multiline"] = len(formula_lines) > 1
                     candidate["line_count"] = len(formula_lines)
                     candidate["parse_status"] = "ok"
@@ -1892,6 +1935,7 @@ def _conversion_report(
     selected_count: int,
     dry_run: bool,
     strict: bool,
+    alias_profile: AliasProfile | None,
 ) -> dict[str, object]:
     backend = "office-xsl" if xsl_path is not None else "python"
     return {
@@ -1902,6 +1946,7 @@ def _conversion_report(
         "inputs": {
             "docx": _path_value(input_path),
             "review": _path_value(review_path),
+            "aliases": _path_value(alias_profile.path) if alias_profile is not None else None,
         },
         "outputs": {
             "docx": _path_value(output_path),
@@ -1912,6 +1957,7 @@ def _conversion_report(
             "xsl": _path_value(xsl_path),
             "dry_run": dry_run,
             "strict": strict,
+            "alias_profile": alias_profile_metadata(alias_profile),
         },
         "summary": {
             "selected": selected_count,
@@ -1959,12 +2005,14 @@ def apply_docx(
     command_name: str = "apply",
     dry_run: bool = False,
     strict: bool = False,
+    alias_profile: AliasProfile | None = None,
 ) -> dict[str, object]:
     if input_path.suffix.lower() != ".docx" or output_path.suffix.lower() != ".docx":
         raise ValueError("Input and output must be .docx files")
     if not dry_run and input_path.resolve() == output_path.resolve():
         raise ValueError("Refusing to overwrite the input DOCX")
     review = json.loads(review_path.read_text(encoding="utf-8"))
+    validate_review_alias_profile(review, alias_profile)
     candidates = [c for c in review.get("candidates", []) if c.get("selected")]
     infos, parts = inspect_docx(input_path)
     transform = etree.XSLT(etree.parse(str(xsl_path))) if xsl_path is not None else None
@@ -1978,6 +2026,7 @@ def apply_docx(
         selected_count=len(candidates),
         dry_run=dry_run,
         strict=strict,
+        alias_profile=alias_profile,
     )
     converted = result["converted"]
     skipped = result["skipped"]
@@ -2002,7 +2051,7 @@ def apply_docx(
                     )
                 )
             continue
-        root = etree.fromstring(parts[part_name])
+        root = parse_xml_part(parts[part_name], part_name=part_name)
         paragraphs = root.xpath(".//w:p", namespaces=NS)
         if paragraph_index >= len(paragraphs):
             for candidate in group:
@@ -2037,7 +2086,16 @@ def apply_docx(
                     and estimated_formula_width(linear) > 65
                 ):
                     table_lines = split_top_level_additive(linear)
-                line_equations = [mathml_to_omml(formula_to_mathml(line), transform) for line in table_lines]
+                line_equations = [
+                    mathml_to_omml(
+                        formula_to_mathml(
+                            line,
+                            aliases=alias_profile.aliases if alias_profile is not None else None,
+                        ),
+                        transform,
+                    )
+                    for line in table_lines
+                ]
                 if explicit_multiline:
                     equations = [combine_equation_array(line_equations)]
                     layout = "equation_array"
@@ -2094,16 +2152,8 @@ def apply_docx(
     output_written = False
     strict_failed = strict and bool(skipped)
     if not dry_run and not strict_failed:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = output_path.with_suffix(output_path.suffix + ".tmp")
-        try:
-            with zipfile.ZipFile(tmp_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-                for info in infos:
-                    archive.writestr(info, parts[info.filename])
-            shutil.move(str(tmp_path), str(output_path))
-            output_written = True
-        finally:
-            tmp_path.unlink(missing_ok=True)
+        write_docx(output_path, infos, parts)
+        output_written = True
     result["converted_count"] = len(converted)
     result["skipped_count"] = len(skipped)
     summary = result["summary"]

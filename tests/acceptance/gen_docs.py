@@ -160,9 +160,37 @@ def doc05_textbook() -> Path:
     )
 
 
+def doc06_v040() -> Path:
+    """v0.4 notation: explicit, multiline, cases, chemistry, physics, and Unicode."""
+    return _write(
+        "doc06_v040.docx",
+        [
+            "MathFmt v0.4 Visual Acceptance",
+            "",
+            "$x ∈ ℝ$",
+            "$A ⊆ B$",
+            "$A ∪ B$",
+            "$u ⊗ v$",
+            "$f(x) = {0, x<0; 1, x>=0}$",
+            r"$$a = b \\ c = d$$",
+            "$2H2 + O2 ->[heat] 2H2O$",
+            "$∂f/∂x = 2x$",
+            "$<phi|psi> = 0$",
+            "${a+b}/c$",
+        ],
+    )
+
+
 def all_docs() -> list[Path]:
     OUT.mkdir(parents=True, exist_ok=True)
-    return [doc01_basic(), doc02_advanced(), doc03_mixed(), doc04_edge_cases(), doc05_textbook()]
+    return [
+        doc01_basic(),
+        doc02_advanced(),
+        doc03_mixed(),
+        doc04_edge_cases(),
+        doc05_textbook(),
+        doc06_v040(),
+    ]
 
 
 if __name__ == "__main__":

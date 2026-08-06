@@ -210,6 +210,33 @@ ASCII partial phrases, tensor indices, and bra-ket forms are reported at medium
 confidence so prose-like notation remains reviewable. Use `$...$` to mark any of
 these forms explicitly and select them at high confidence.
 
+### User-defined symbol aliases
+
+Use a JSON alias profile to render project-specific ASCII tokens as one Unicode
+mathematical symbol without editing MathFmt source code:
+
+```json
+{
+  "name": "engineering",
+  "aliases": {
+    "ohm": "Ω",
+    "mapsTo": "↦",
+    "complexes": "ℂ"
+  }
+}
+```
+
+Alias tokens must start with an ASCII letter and contain only ASCII letters or
+digits. Each value must be exactly one Unicode mathematical symbol. Core syntax
+names such as `sqrt`, `lim`, `sum`, `cases`, `partial`, `bra`, and `ket` are
+reserved and cannot be overridden. Invalid, duplicate, or unsupported entries stop
+the command with a clear error.
+
+Aliases affect parsing, not candidate discovery. Keep a custom standalone symbol
+inside `$...$`, or use it in a formula with a normal scanner anchor such as `=`.
+The same alias profile must be supplied to `scan`, `apply`, and review-aware
+`validate`; MathFmt compares the profile SHA-256 digest before conversion.
+
 ---
 
 ## 4. MathML Output Mapping
@@ -225,6 +252,7 @@ these forms explicitly and select them at high confidence.
 | `partial_derivative` | `m:mfrac` with `∂` numerator/denominator runs |
 | `subsup` tensor | `m:msubsup` |
 | `bra`, `ket`, `braket` | Angle/bar `m:mfenced` delimiters |
+| user alias | `m:mi` for letter-like symbols or `m:mo` for operator-like symbols |
 | `group` `(...)` | `m:mfenced` |
 | `sqrt` | `m:msqrt` |
 | `function` `sin(…)` | `m:mrow(m:mi(sin), m:mfenced(…))` |
@@ -278,10 +306,12 @@ candidate's `linear` value:
 | `a = b \\ c = d` | Two-row native Word equation array |
 | `x = y` followed by a real line break and `z = w` | Two-row native Word equation array |
 
-Each row is parsed with the normal formula grammar. MathFmt emits one native
-`m:eqArr` object, preserves row order, and inserts Word alignment markers before the
-first top-level relation symbol (`=`, `<`, `>`, `≤`, `≥`, `≠`, `≈`, `→`, `⇒`, or `⇌`).
-Empty rows are rejected with `FormulaError`.
+Each row is parsed with the normal formula grammar. When every row has a top-level
+relation, MathFmt emits a native two-column OMML alignment matrix: the left column is
+right-aligned and the relation/right side is left-aligned. This preserves row order and
+aligns at the first relation symbol (`=`, `<`, `>`, `≤`, `≥`, `≠`, `≈`, `→`, `⇒`, or
+`⇌`) in both Word and LibreOffice. Rows without a common relation fall back to native
+`m:eqArr`. Empty rows are rejected with `FormulaError`.
 
 Outside the explicit-delimiter, step-function, and chemistry detectors described
 above, formulas are detected by walking character runs. A generic span must satisfy
@@ -315,15 +345,21 @@ Candidates are cleaned by removing:
 
 ## 6. Limitations
 
-### Unsupported structures (will raise `FormulaError`)
+### Supported structured forms
 
-| Structure | Example | Tracked by |
+| Structure | Supported example | Regression test |
 |---|---|---|
-| Integral | `∫f(x)dx` | `test_integral_notation` (xfail) |
-| Summation | `∑_{i=1}^{n} x_i` | `test_summation_notation` (xfail) |
-| Matrix | `[[a,b],[c,d]]` | `test_matrix_notation` (xfail) |
-| Vector | `[x, y, z]` | `test_vector_notation` (xfail) |
-| `lim_{x→0}` (subscript) | `lim_{x→0}` (use `lim(x->0)`) | `test_limit_subscript_notation` (xfail) |
+| Integral | `∫x*dx` | `test_integral_notation` |
+| Summation | `∑_{i=1}^{n} x_i` | `test_summation_notation` |
+| Matrix | `[[a,b],[c,d]]` | `test_matrix_notation` |
+| Vector | `v = [x, y, z]` | `test_vector_notation` |
+| Limit subscript | `lim_{x→0} f(x)` | `test_limit_subscript_notation` |
+| Explicit brace grouping | `{a+b}` | `test_explicit_brace_grouping` |
+
+Common Unicode number sets (`ℝ`, `ℂ`, `ℕ`, `ℤ`, `ℚ`, `ℙ`, `ℍ`) and operators
+(`∈`, `∉`, `⊂`, `⊆`, `⊃`, `⊇`, `∪`, `∩`, `∧`, `∨`, `⊕`, `⊗`, `∝`, `≡`, `≅`)
+are accepted directly. Wrap short standalone expressions in `$...$` when automatic
+scanning would otherwise treat them as prose.
 
 ### Heuristic limitations
 
@@ -331,7 +367,8 @@ Candidates are cleaned by removing:
 - **False negatives**: most formulas without anchor operators (`=`, `≠`, `≤`, `≥`,
   `!=`, `→`, `->`, `±`, `+/-`, `√`, `sqrt`, `lim`) are not detected. Supported
   chemistry and physics patterns have dedicated conservative detectors.
-- **Cross-paragraph**: each paragraph is scanned independently; a formula split across two paragraphs is not merged.
+- **Cross-paragraph**: each paragraph is scanned independently; a formula split across two paragraphs is not
+  merged. Keep the formula in one paragraph or mark each complete expression explicitly with `$...$`.
 
 ### Chemistry limitations
 
@@ -352,6 +389,17 @@ Candidates are cleaned by removing:
 - Compact bra-ket syntax supports one separator (`<phi|psi>` or `⟨φ|ψ⟩`). Operator
   matrix elements such as `⟨φ|A|ψ⟩` are not yet recognized by the compact form;
   compose them with explicit `bra(...)` and `ket(...)` notation.
+
+### Symbol alias limitations
+
+- Alias profiles are JSON files with `name` and `aliases` fields; TOML is not
+  currently supported.
+- Alias values are one Unicode symbol, not replacement expressions or multi-symbol
+  macros.
+- Alias files do not create new scanner heuristics. Use explicit `$...$` delimiters
+  for standalone custom symbols.
+- A reviewed report that records aliases must be applied or validated with the same
+  profile contents; renaming or editing the profile changes its digest.
 
 ### Structural limitations
 

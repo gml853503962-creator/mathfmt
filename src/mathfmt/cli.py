@@ -15,6 +15,7 @@ from pathlib import Path
 from lxml import etree
 
 from . import __version__
+from .aliases import load_alias_profile
 from .core import apply_docx, find_xsl, scan_docx
 from .update import check_for_updates
 from .validate import validate_docx
@@ -35,6 +36,8 @@ def doctor_data(explicit_xsl: Path | None = None) -> dict[str, object]:
         "platform": platform.platform(),
         "windows": os.name == "nt",
         "lxml": etree.LXML_VERSION,
+        "libxml2": etree.LIBXML_VERSION,
+        "libxslt": etree.LIBXSLT_VERSION,
         "xsl": None,
         "backend": "python",
         "ready": True,
@@ -58,12 +61,14 @@ def build_parser() -> argparse.ArgumentParser:
     scan = subparsers.add_parser("scan", help="create a reviewable formula candidate report")
     scan.add_argument("input", type=Path)
     scan.add_argument("--report", type=Path, required=True)
+    scan.add_argument("--aliases", type=Path, help="JSON symbol alias profile")
 
     apply = subparsers.add_parser("apply", help="apply a reviewed candidate report")
     apply.add_argument("input", type=Path)
     apply.add_argument("--review", type=Path, required=True)
     apply.add_argument("--output", "--out", dest="output", type=Path)
     apply.add_argument("--report", type=Path, required=True)
+    apply.add_argument("--aliases", type=Path, help="JSON symbol alias profile used during scan")
     apply.add_argument("--dry-run", action="store_true", help="preview changes without writing a DOCX")
     apply.add_argument(
         "--strict", action="store_true", help="do not write output if any selected formula fails"
@@ -77,6 +82,7 @@ def build_parser() -> argparse.ArgumentParser:
     convert.add_argument("--output", "--out", dest="output", type=Path)
     convert.add_argument("--report", type=Path)
     convert.add_argument("--xsl", type=Path)
+    convert.add_argument("--aliases", type=Path, help="JSON symbol alias profile")
     convert.add_argument(
         "--confidence",
         choices=["high", "medium", "all"],
@@ -96,6 +102,7 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--report", type=Path)
     validate.add_argument("--review", type=Path, help="path to candidates.json for formula coverage check")
     validate.add_argument("--xsl", type=Path, help="path to MML2OMML.XSL for cross-backend comparison")
+    validate.add_argument("--aliases", type=Path, help="JSON symbol alias profile used during scan")
 
     update = subparsers.add_parser("update", help="check for newer MathFmt releases on GitHub")
     update.add_argument(
@@ -111,6 +118,7 @@ def build_parser() -> argparse.ArgumentParser:
 def run_convert(args: argparse.Namespace) -> int:
     output = args.output or default_output(args.input)
     report_path = args.report or default_result_report(output)
+    alias_profile = load_alias_profile(args.aliases) if args.aliases is not None else None
     if args.xsl is not None:
         xsl = find_xsl(args.xsl)
     else:
@@ -120,7 +128,7 @@ def run_convert(args: argparse.Namespace) -> int:
             xsl = None
     with tempfile.TemporaryDirectory(prefix="mathfmt-") as temp_dir:
         review_path = Path(temp_dir) / "candidates.json"
-        scan = scan_docx(args.input, review_path)
+        scan = scan_docx(args.input, review_path, alias_profile=alias_profile)
         if args.confidence != "all":
             review = json.loads(review_path.read_text(encoding="utf-8"))
             confidence_order = {"high": 0, "medium": 1, "low": 2}
@@ -138,6 +146,7 @@ def run_convert(args: argparse.Namespace) -> int:
             xsl,
             command_name="convert",
             strict=args.strict,
+            alias_profile=alias_profile,
         )
     print(f"Candidates: {scan['summary']['candidates']}")
     print(f"Converted: {result['converted_count']}")
@@ -153,7 +162,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         if args.command == "scan":
-            report = scan_docx(args.input, args.report)
+            alias_profile = load_alias_profile(args.aliases) if args.aliases is not None else None
+            report = scan_docx(args.input, args.report, alias_profile=alias_profile)
             print(f"Candidates: {report['summary']['candidates']}")
             print(f"Report: {args.report}")
             return 0
@@ -161,6 +171,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.output is None and not args.dry_run:
                 raise ValueError("apply requires --output unless --dry-run is used")
             output = args.output or default_output(args.input)
+            alias_profile = load_alias_profile(args.aliases) if args.aliases is not None else None
             if args.xsl is not None:
                 xsl_path = find_xsl(args.xsl)
             else:
@@ -176,6 +187,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 xsl_path,
                 dry_run=args.dry_run,
                 strict=args.strict,
+                alias_profile=alias_profile,
             )
             print(f"Converted: {result['converted_count']}")
             print(f"Skipped: {result['skipped_count']}")
@@ -197,12 +209,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"MathFmt: {data['mathfmt']}")
                 print(f"Python: {data['python']}")
                 print(f"Platform: {data['platform']}")
+                print(f"lxml: {'.'.join(str(part) for part in data['lxml'])}")
+                print(f"libxml2: {'.'.join(str(part) for part in data['libxml2'])}")
+                print(f"libxslt: {'.'.join(str(part) for part in data['libxslt'])}")
                 print(f"OMML backend: {data['backend']}")
                 if data["xsl"]:
                     print(f"MML2OMML.XSL: {data['xsl']}")
                 print(f"Ready: {'yes' if data['ready'] else 'no'}")
             return 0 if data["ready"] else 1
         if args.command == "validate":
+            alias_profile = load_alias_profile(args.aliases) if args.aliases is not None else None
             if args.xsl is not None:
                 xsl_path = find_xsl(args.xsl)
             else:
@@ -214,6 +230,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.input,
                 review_path=args.review,
                 xsl_path=xsl_path,
+                alias_profile=alias_profile,
             )
             if args.report:
                 args.report.parent.mkdir(parents=True, exist_ok=True)

@@ -48,9 +48,19 @@ def mathml_to_omml_py(math_elem: etree._Element) -> etree._Element:
 
 
 def combine_equation_array(equations: Sequence[etree._Element]) -> etree._Element:
-    """Combine line-level ``m:oMath`` elements into one native equation array."""
+    """Combine line-level equations into a native multiline layout.
+
+    Rows that all contain a top-level relation use a two-column OMML matrix so
+    the relation column aligns in Word and LibreOffice without exposing the
+    literal ``&`` marker used by Word-only equation arrays. Other rows fall
+    back to a one-column ``m:eqArr``.
+    """
     if len(equations) < 2:
         raise ValueError("An equation array requires at least two lines")
+
+    split_rows = [_split_at_relation(equation) for equation in equations]
+    if all(row is not None for row in split_rows):
+        return _relation_alignment_matrix([row for row in split_rows if row is not None])
 
     omath = etree.Element(qname(M_NS, "oMath"))
     equation_array = etree.SubElement(omath, qname(M_NS, "eqArr"))
@@ -58,13 +68,15 @@ def combine_equation_array(equations: Sequence[etree._Element]) -> etree._Elemen
         line = etree.SubElement(equation_array, qname(M_NS, "e"))
         for child in equation:
             line.append(copy.deepcopy(child))
-        _insert_relation_alignment_marker(line)
     return omath
 
 
-def _insert_relation_alignment_marker(line: etree._Element) -> None:
-    """Align equation-array rows at their first top-level relation symbol."""
-    for index, child in enumerate(list(line)):
+def _split_at_relation(
+    equation: etree._Element,
+) -> tuple[list[etree._Element], list[etree._Element]] | None:
+    """Split top-level OMML children immediately before the first relation."""
+    children = list(equation)
+    for index, child in enumerate(children):
         if child.tag != qname(M_NS, "r"):
             continue
         text_node = child.find(qname(M_NS, "t"))
@@ -75,25 +87,49 @@ def _insert_relation_alignment_marker(line: etree._Element) -> None:
         if not positions:
             continue
         position = min(positions)
-        marker = etree.Element(qname(M_NS, "r"))
-        marker_text = etree.SubElement(marker, qname(M_NS, "t"))
-        marker_text.text = "&"
-        if position == 0:
-            line.insert(index, marker)
-            return
+        left = [copy.deepcopy(item) for item in children[:index]]
+        right = [copy.deepcopy(item) for item in children[index + 1 :]]
 
-        left = copy.deepcopy(child)
-        right = copy.deepcopy(child)
-        left_text = left.find(qname(M_NS, "t"))
-        right_text = right.find(qname(M_NS, "t"))
-        assert left_text is not None and right_text is not None
-        left_text.text = text[:position]
+        if position:
+            left_run = copy.deepcopy(child)
+            left_text = left_run.find(qname(M_NS, "t"))
+            assert left_text is not None
+            left_text.text = text[:position]
+            left.append(left_run)
+
+        right_run = copy.deepcopy(child)
+        right_text = right_run.find(qname(M_NS, "t"))
+        assert right_text is not None
         right_text.text = text[position:]
-        line.remove(child)
-        line.insert(index, left)
-        line.insert(index + 1, marker)
-        line.insert(index + 2, right)
-        return
+        right.insert(0, right_run)
+        return left, right
+    return None
+
+
+def _relation_alignment_matrix(
+    rows: Sequence[tuple[list[etree._Element], list[etree._Element]]],
+) -> etree._Element:
+    omath = etree.Element(qname(M_NS, "oMath"))
+    matrix = etree.SubElement(omath, qname(M_NS, "m"))
+    properties = etree.SubElement(matrix, qname(M_NS, "mPr"))
+    etree.SubElement(properties, qname(M_NS, "plcHide"), {qname(M_NS, "val"): "1"})
+    columns = etree.SubElement(properties, qname(M_NS, "mcs"))
+    for justification in ("right", "left"):
+        column = etree.SubElement(columns, qname(M_NS, "mc"))
+        column_properties = etree.SubElement(column, qname(M_NS, "mcPr"))
+        etree.SubElement(column_properties, qname(M_NS, "count"), {qname(M_NS, "val"): "1"})
+        etree.SubElement(
+            column_properties,
+            qname(M_NS, "mcJc"),
+            {qname(M_NS, "val"): justification},
+        )
+
+    for left, right in rows:
+        matrix_row = etree.SubElement(matrix, qname(M_NS, "mr"))
+        for cell_children in (left, right):
+            cell = etree.SubElement(matrix_row, qname(M_NS, "e"))
+            cell.extend(cell_children)
+    return omath
 
 
 def _convert(elem: etree._Element, parent: etree._Element) -> None:

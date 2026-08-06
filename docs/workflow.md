@@ -41,6 +41,26 @@ For documents with mixed technical prose, code, images, and formulas:
 mathfmt scan document.docx --report candidates.json
 ```
 
+To use custom symbols, pass a JSON alias profile:
+
+```json
+{
+  "name": "engineering",
+  "aliases": {
+    "ohm": "Ω",
+    "mapsTo": "↦"
+  }
+}
+```
+
+```powershell
+mathfmt scan document.docx --report candidates.json --aliases symbols.json
+```
+
+The report records the profile name, resolved path, alias count, and SHA-256 digest.
+Alias values must be one Unicode mathematical symbol. Parser keywords and core
+operators cannot be overridden.
+
 This produces `candidates.json` containing every detected formula candidate:
 
 ```json
@@ -50,7 +70,8 @@ This produces `candidates.json` containing every detected formula candidate:
   "profile": {
     "derivatives": "fraction",
     "unit_step": "u(t)",
-    "output": "native_word_omml"
+    "output": "native_word_omml",
+    "aliases": null
   },
   "summary": {
     "paragraphs": 42,
@@ -139,6 +160,15 @@ Common review actions:
 mathfmt apply document.docx --review candidates.json --output result.docx --report result.json
 ```
 
+If `scan` used aliases, pass the same profile to `apply`:
+
+```powershell
+mathfmt apply document.docx --review candidates.json --output result.docx --report result.json --aliases symbols.json
+```
+
+MathFmt rejects a missing or changed profile before writing output, so reviewed
+notation cannot silently acquire different symbol meanings.
+
 To preview the same conversions without writing a DOCX:
 
 ```powershell
@@ -225,6 +255,13 @@ Custom output paths:
 mathfmt convert input.docx --output final.docx --report conversion.json
 ```
 
+One-step conversion also accepts aliases and automatically uses the same profile
+for its internal scan and apply phases:
+
+```powershell
+mathfmt convert input.docx --output final.docx --report conversion.json --aliases symbols.json
+```
+
 **Important**: `convert` uses default `selected: true` for all parseable candidates. It does not apply human judgment. If your document has prose that resembles formulas, use `scan` + `apply` instead.
 
 **Safety**: `convert` never overwrites the input file. The output name always differs from the input name.
@@ -242,6 +279,7 @@ mathfmt convert input.docx --output final.docx --report conversion.json
 | `summary.existing_equations` | Paragraphs that already contain native Word equations (skipped) |
 | `summary.drawing_paragraphs` | Paragraphs containing images or drawings (skipped) |
 | `summary.code_paragraphs` | Paragraphs identified as code (skipped) |
+| `profile.aliases` | Alias profile name, resolved path, SHA-256 digest, and symbol count, or `null` |
 | `candidates[].source` | Original DOCX text span; explicit formulas keep `$...$` or `$$...$$` here |
 | `candidates[].linear` | Parsed formula text; explicit formulas remove the delimiters here |
 | `candidates[].display` | `true` if the formula fills the entire paragraph (renders as display equation) |
@@ -259,6 +297,8 @@ mathfmt convert input.docx --output final.docx --report conversion.json
 | `command.name` | `"apply"` or `"convert"` |
 | `options.dry_run` | `true` when previewing without writing DOCX output |
 | `options.strict` | `true` when failures prevent DOCX output |
+| `inputs.aliases` | Resolved alias profile path, or `null` |
+| `options.alias_profile` | Alias profile metadata used for conversion, or `null` |
 | `summary.output_written` | Whether a DOCX output file was written |
 | `summary.strict_failed` | Whether strict mode blocked DOCX output |
 | `formulas[].status` | Per-formula result: `"converted"`, `"skipped"`, or `"failed"` |
@@ -285,6 +325,18 @@ Use `mathfmt validate` to check DOCX correctness without opening Word:
 
 ```powershell
 mathfmt validate output.docx --report validation.json
+```
+
+The repository CI also generates the v0.4 acceptance document, converts it with the
+built-in backend, renders it through LibreOffice, and checks the resulting PDF for
+visible Word-only alignment markers. This complements structural validation with a
+repeatable cross-application rendering smoke test.
+
+When validating formula coverage from a review created with aliases, pass the same
+profile:
+
+```powershell
+mathfmt validate output.docx --review candidates.json --report validation.json --aliases symbols.json
 ```
 
 It performs four checks:
@@ -353,6 +405,10 @@ The `doctor --json` output is machine-readable:
 | `MML2OMML.XSL was not found` | Normal — the built-in Python backend is used automatically. To use Office XSL, pass `--xsl` |
 | `Refusing to overwrite the input DOCX` | MathFmt never overwrites the source; choose a different `--output` path |
 | `Input must be a .docx file` | MathFmt only handles `.docx` (Office Open XML); convert older `.doc` files first |
+| `Alias profile must be a .json file` | Use the documented JSON structure; TOML and other formats are not yet supported |
+| `Review report uses alias profile ...` | Pass the same profile used for `scan` with `--aliases` |
+| `Alias profile ... does not match` | The profile changed after review; restore the reviewed file or scan again |
+| `Review report was created without an alias profile` | Re-run `scan --aliases ...`; aliases cannot be introduced only at apply time |
 | Formula not detected | Check whether it contains an anchor operator (`=`, `≠`, `<=`, `>=`, `!=`, `→`, `->`, `±`, `+/-`, `√`, `sqrt`, `lim`) or a documented chemistry/physics pattern. Otherwise mark it explicitly with `$...$` |
 | `parse_status: "review"` | The formula couldn't be parsed. Edit `linear` in the candidate report, or set `selected: false` |
 | Table formula is cut off | The formula may be too long even after splitting. Shorten the `linear` text or split it manually into multiple paragraphs |

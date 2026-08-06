@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from mathfmt import cli
+from mathfmt.core import W_NS
 from tests.helpers import make_docx, make_fake_xsl
 
 
@@ -64,6 +65,110 @@ def test_scan_and_apply_commands(tmp_path: Path, capsys: pytest.CaptureFixture[s
     )
     assert output.is_file()
     assert "Converted:" in capsys.readouterr().out
+
+
+def test_alias_profile_is_supported_across_cli_formula_commands(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    alias_path = tmp_path / "engineering.json"
+    alias_path.write_text(
+        json.dumps({"name": "engineering", "aliases": {"ohm": "Ω"}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    source = make_docx(
+        tmp_path / "source.docx",
+        document_xml=(
+            f'<w:document xmlns:w="{W_NS}"><w:body>'
+            "<w:p><w:r><w:t>Resistance: $R = ohm$.</w:t></w:r></w:p>"
+            "</w:body></w:document>"
+        ),
+    )
+    review = tmp_path / "review.json"
+    output = tmp_path / "output.docx"
+    result = tmp_path / "result.json"
+    xsl = make_fake_xsl(tmp_path / "fake.xsl")
+
+    assert cli.main(["scan", str(source), "--report", str(review), "--aliases", str(alias_path)]) == 0
+    capsys.readouterr()
+    scanned = json.loads(review.read_text(encoding="utf-8"))
+    assert scanned["profile"]["aliases"]["name"] == "engineering"
+
+    assert (
+        cli.main(
+            [
+                "apply",
+                str(source),
+                "--review",
+                str(review),
+                "--output",
+                str(output),
+                "--report",
+                str(result),
+                "--xsl",
+                str(xsl),
+                "--aliases",
+                str(alias_path),
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+    assert json.loads(result.read_text(encoding="utf-8"))["options"]["alias_profile"]["name"] == (
+        "engineering"
+    )
+
+    assert (
+        cli.main(
+            [
+                "validate",
+                str(output),
+                "--review",
+                str(review),
+                "--aliases",
+                str(alias_path),
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    converted = tmp_path / "converted.docx"
+    converted_report = tmp_path / "converted.json"
+    assert (
+        cli.main(
+            [
+                "convert",
+                str(source),
+                "--output",
+                str(converted),
+                "--report",
+                str(converted_report),
+                "--xsl",
+                str(xsl),
+                "--aliases",
+                str(alias_path),
+            ]
+        )
+        == 0
+    )
+    assert json.loads(converted_report.read_text(encoding="utf-8"))["converted_count"] == 1
+
+
+def test_cli_invalid_alias_profile_returns_nonzero(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = make_docx(tmp_path / "source.docx")
+    aliases = tmp_path / "aliases.json"
+    aliases.write_text('{"aliases":{"sqrt":"√"}}', encoding="utf-8")
+
+    code = cli.main(
+        ["scan", str(source), "--report", str(tmp_path / "review.json"), "--aliases", str(aliases)]
+    )
+
+    assert code == 1
+    assert "reserved by MathFmt core syntax" in capsys.readouterr().err
 
 
 def test_apply_requires_output_unless_dry_run(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -150,9 +255,17 @@ def test_apply_strict_returns_failure_without_writing_output(
 def test_doctor_command_text_and_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     xsl = make_fake_xsl(tmp_path / "fake.xsl")
     assert cli.main(["doctor", "--xsl", str(xsl)]) == 0
-    assert "Ready: yes" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "Ready: yes" in output
+    assert "lxml:" in output
+    assert "libxml2:" in output
+    assert "libxslt:" in output
     assert cli.main(["doctor", "--xsl", str(xsl), "--json"]) == 0
-    assert json.loads(capsys.readouterr().out)["ready"] is True
+    data = json.loads(capsys.readouterr().out)
+    assert data["ready"] is True
+    assert data["lxml"]
+    assert data["libxml2"]
+    assert data["libxslt"]
 
 
 def test_cli_reports_missing_input(capsys: pytest.CaptureFixture[str]) -> None:

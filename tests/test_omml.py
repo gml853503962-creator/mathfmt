@@ -196,17 +196,31 @@ def test_comma_separated_sequence() -> None:
 
 def test_equation_array_preserves_lines_and_aligns_relations() -> None:
     array = combine_equation_array([omath_for("a = b"), omath_for("long = d")])
-    rows = array.xpath("./m:eqArr/m:e", namespaces={"m": M_NS})
+    rows = array.xpath("./m:m/m:mr", namespaces={"m": M_NS})
 
     assert len(rows) == 2
-    assert ["".join(row.itertext()) for row in rows] == ["a&=b", "long&=d"]
+    assert [["".join(cell.itertext()) for cell in row] for row in rows] == [
+        ["a", "=b"],
+        ["long", "=d"],
+    ]
+    justifications = array.xpath("./m:m/m:mPr/m:mcs/m:mc/m:mcPr/m:mcJc/@m:val", namespaces={"m": M_NS})
+    assert justifications == ["right", "left"]
 
 
 def test_equation_array_preserves_structured_math() -> None:
     array = combine_equation_array([omath_for("a / b = c"), omath_for("x^2 = y")])
 
-    assert array.xpath("boolean(.//m:eqArr/m:e/m:f)", namespaces={"m": M_NS})
-    assert array.xpath("boolean(.//m:eqArr/m:e/m:sSup)", namespaces={"m": M_NS})
+    assert array.xpath("boolean(.//m:m/m:mr/m:e/m:f)", namespaces={"m": M_NS})
+    assert array.xpath("boolean(.//m:m/m:mr/m:e/m:sSup)", namespaces={"m": M_NS})
+
+
+def test_multiline_without_common_relations_falls_back_to_equation_array() -> None:
+    array = combine_equation_array([omath_for("a + b"), omath_for("c - d")])
+    rows = array.xpath("./m:eqArr/m:e", namespaces={"m": M_NS})
+
+    assert len(rows) == 2
+    assert ["".join(row.itertext()) for row in rows] == ["a+b", "c-d"]
+    assert "&" not in "".join(array.itertext())
 
 
 @pytest.mark.parametrize(
