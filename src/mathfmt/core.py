@@ -17,6 +17,13 @@ from ._version import __version__
 from .aliases import AliasProfile, alias_profile_metadata, validate_review_alias_profile
 from .docxio import inspect_docx, parse_xml_part, write_docx
 from .omml import combine_equation_array, mathml_to_omml_py
+from .plugins import (
+    FormulaCandidate,
+    FormulaRecognizer,
+    normalize_recognizers,
+    recognize_with_plugins,
+    recognizers_metadata,
+)
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
@@ -269,16 +276,7 @@ class ChemicalFormula:
         return self.element_count >= 2 or self.has_subscript or self.has_group or self.has_multiletter_element
 
 
-@dataclass(frozen=True)
-class CandidateSpan:
-    start: int
-    end: int
-    source: str
-    linear: str | None = None
-    display: bool = False
-    explicit: bool = False
-    chemistry: bool = False
-    physics: str | None = None
+CandidateSpan = FormulaCandidate
 
 
 class FormulaError(ValueError):
@@ -1530,7 +1528,15 @@ def _physics_kind(source: str) -> str | None:
     return None
 
 
-def candidate_spans(text: str) -> list[CandidateSpan]:
+def candidate_spans(
+    text: str,
+    recognizers: Sequence[FormulaRecognizer] = (),
+) -> list[CandidateSpan]:
+    """Find built-in and opt-in plugin candidates in one paragraph.
+
+    Built-in spans take precedence over plugin spans.  Plugins are evaluated in
+    the order provided, with the first non-overlapping result winning.
+    """
     candidates: list[CandidateSpan] = []
 
     latex_spans = _latex_delimited_spans(text)
@@ -1597,22 +1603,33 @@ def candidate_spans(text: str) -> list[CandidateSpan]:
     for item in sorted(candidates, key=lambda span: (span.start, span.end)):
         if not deduped or (item.start, item.end) != (deduped[-1].start, deduped[-1].end):
             deduped.append(item)
-    return deduped
+    plugin_spans = recognize_with_plugins(
+        text,
+        recognizers,
+        claimed=[(span.start, span.end) for span in deduped],
+    )
+    return sorted([*deduped, *plugin_spans], key=lambda span: (span.start, span.end))
 
 
-def candidate_runs(text: str) -> list[tuple[int, int, str]]:
-    return [(span.start, span.end, span.source) for span in candidate_spans(text)]
+def candidate_runs(
+    text: str,
+    recognizers: Sequence[FormulaRecognizer] = (),
+) -> list[tuple[int, int, str]]:
+    return [(span.start, span.end, span.source) for span in candidate_spans(text, recognizers)]
 
 
 def scan_docx(
     input_path: Path,
     report_path: Path,
     alias_profile: AliasProfile | None = None,
+    *,
+    recognizers: Sequence[FormulaRecognizer] = (),
 ) -> dict[str, object]:
     if input_path.suffix.lower() != ".docx":
         raise ValueError("Input must be a .docx file")
     if not input_path.is_file():
         raise FileNotFoundError(f"Input DOCX was not found: {input_path}")
+    active_recognizers = normalize_recognizers(recognizers)
     _, parts = inspect_docx(input_path)
     report: dict[str, object] = {
         "schema_version": 2,
@@ -1622,6 +1639,7 @@ def scan_docx(
             "unit_step": "u(t)",
             "output": "native_word_omml",
             "aliases": alias_profile_metadata(alias_profile),
+            "recognizers": recognizers_metadata(active_recognizers),
         },
         "summary": {
             "paragraphs": 0,
@@ -1654,11 +1672,19 @@ def scan_docx(
                 continue
             if likely_code(text):
                 scan_spans = _latex_delimited_spans(text)
+                scan_spans.extend(
+                    recognize_with_plugins(
+                        text,
+                        active_recognizers,
+                        claimed=[(span.start, span.end) for span in scan_spans],
+                    )
+                )
+                scan_spans.sort(key=lambda span: (span.start, span.end))
                 if not scan_spans:
                     summary["code_paragraphs"] += 1
                     continue
             else:
-                scan_spans = candidate_spans(text)
+                scan_spans = candidate_spans(text, active_recognizers)
             for span in scan_spans:
                 candidate_id = f"f{len(candidates) + 1:04d}"
                 start, end, source = span.start, span.end, span.source
@@ -1677,7 +1703,10 @@ def scan_docx(
                         chemistry_strong = chemistry[2]
                 except FormulaError:
                     chemistry = None
-                if span.explicit:
+                if span.recognizer is not None:
+                    confidence = span.confidence or "medium"
+                    reason = span.confidence_reason or f"custom recognizer {span.recognizer!r}"
+                elif span.explicit:
                     confidence = "high"
                     reason = "explicit LaTeX delimiter"
                 elif chemistry_kind == "reaction":
@@ -1723,6 +1752,8 @@ def scan_docx(
                     "chemistry_kind": chemistry_kind,
                     "physics": physics_kind is not None,
                     "physics_kind": physics_kind,
+                    "recognizer": span.recognizer,
+                    "recognizer_kind": span.kind,
                 }
                 try:
                     formula_lines = split_multiline_formula(linear)
@@ -1914,6 +1945,8 @@ def _formula_report_item(
         "confidence": candidate.get("confidence"),
         "display": bool(candidate.get("display")),
         "location": _candidate_location(candidate),
+        "recognizer": candidate.get("recognizer"),
+        "recognizer_kind": candidate.get("recognizer_kind"),
     }
     if lines is not None:
         item["lines"] = lines
@@ -1942,6 +1975,7 @@ def _conversion_report(
     dry_run: bool,
     strict: bool,
     alias_profile: AliasProfile | None,
+    recognizers: list[dict[str, object]],
 ) -> dict[str, object]:
     backend = "office-xsl" if xsl_path is not None else "python"
     return {
@@ -1964,6 +1998,7 @@ def _conversion_report(
             "dry_run": dry_run,
             "strict": strict,
             "alias_profile": alias_profile_metadata(alias_profile),
+            "recognizers": recognizers,
         },
         "summary": {
             "selected": selected_count,
@@ -2019,6 +2054,12 @@ def apply_docx(
         raise ValueError("Refusing to overwrite the input DOCX")
     review = json.loads(review_path.read_text(encoding="utf-8"))
     validate_review_alias_profile(review, alias_profile)
+    review_profile = review.get("profile")
+    review_recognizers = review_profile.get("recognizers", []) if isinstance(review_profile, dict) else []
+    if not isinstance(review_recognizers, list) or not all(
+        isinstance(item, dict) for item in review_recognizers
+    ):
+        raise ValueError("Review report contains invalid recognizer metadata")
     candidates = [c for c in review.get("candidates", []) if c.get("selected")]
     infos, parts = inspect_docx(input_path)
     transform = etree.XSLT(etree.parse(str(xsl_path))) if xsl_path is not None else None
@@ -2033,6 +2074,7 @@ def apply_docx(
         dry_run=dry_run,
         strict=strict,
         alias_profile=alias_profile,
+        recognizers=review_recognizers,
     )
     converted = result["converted"]
     skipped = result["skipped"]
@@ -2041,119 +2083,135 @@ def apply_docx(
     assert isinstance(skipped, list)
     assert isinstance(formulas, list)
 
-    grouped: dict[tuple[str, int], list[dict[str, object]]] = {}
+    grouped: dict[str, dict[int, list[dict[str, object]]]] = {}
     for candidate in candidates:
-        key = (str(candidate["part"]), int(candidate["paragraph_index"]))
-        grouped.setdefault(key, []).append(candidate)
+        part_name = str(candidate["part"])
+        paragraph_index = int(candidate["paragraph_index"])
+        grouped.setdefault(part_name, {}).setdefault(paragraph_index, []).append(candidate)
 
-    for (part_name, paragraph_index), group in grouped.items():
+    for part_name, paragraph_groups in grouped.items():
         if part_name not in parts:
-            for candidate in group:
-                error = "DOCX part not found"
-                skipped.append({"id": candidate.get("id"), "error": error})
-                formulas.append(
-                    _formula_report_item(
-                        candidate, status="skipped", message=error, warning_code="location_skipped"
+            for group in paragraph_groups.values():
+                for candidate in group:
+                    error = "DOCX part not found"
+                    skipped.append({"id": candidate.get("id"), "error": error})
+                    formulas.append(
+                        _formula_report_item(
+                            candidate,
+                            status="skipped",
+                            message=error,
+                            warning_code="location_skipped",
+                        )
                     )
-                )
             continue
         root = parse_xml_part(parts[part_name], part_name=part_name)
         paragraphs = root.xpath(".//w:p", namespaces=NS)
-        if paragraph_index >= len(paragraphs):
-            for candidate in group:
-                error = "Paragraph index out of range"
-                skipped.append({"id": candidate.get("id"), "error": error})
-                formulas.append(
-                    _formula_report_item(
-                        candidate, status="skipped", message=error, warning_code="location_skipped"
+        for paragraph_index, group in paragraph_groups.items():
+            if not 0 <= paragraph_index < len(paragraphs):
+                for candidate in group:
+                    error = "Paragraph index out of range"
+                    skipped.append({"id": candidate.get("id"), "error": error})
+                    formulas.append(
+                        _formula_report_item(
+                            candidate,
+                            status="skipped",
+                            message=error,
+                            warning_code="location_skipped",
+                        )
                     )
-                )
-            continue
-        paragraph = paragraphs[paragraph_index]
-        original_text = paragraph_text(paragraph)
-        for candidate in sorted(group, key=lambda c: int(c["start"]), reverse=True):
-            try:
-                start, end = int(candidate["start"]), int(candidate["end"])
-                source = str(candidate["source"])
-                if original_text[start:end] != source:
-                    raise FormulaError("Reviewed source no longer matches the paragraph span")
-                linear = str(candidate.get("linear", source))
-                in_table = bool(paragraph.xpath("ancestor::w:tc", namespaces=NS))
-                is_display = bool(candidate.get("display")) and source.strip() == original_text.strip()
-                outside_formula = original_text[:start] + original_text[end:]
-                covers_formula_paragraph = not outside_formula.strip(TRIM_PUNCT)
-                reviewed_lines = split_multiline_formula(linear)
-                explicit_multiline = len(reviewed_lines) > 1
-                table_lines = reviewed_lines
-                if (
-                    not explicit_multiline
-                    and in_table
-                    and covers_formula_paragraph
-                    and estimated_formula_width(linear) > 65
-                ):
-                    table_lines = split_top_level_additive(linear)
-                line_equations = [
-                    mathml_to_omml(
-                        formula_to_mathml(
-                            line,
-                            aliases=alias_profile.aliases if alias_profile is not None else None,
-                        ),
-                        transform,
+                continue
+            paragraph = paragraphs[paragraph_index]
+            original_text = paragraph_text(paragraph)
+            for candidate in sorted(group, key=lambda c: int(c["start"]), reverse=True):
+                try:
+                    start, end = int(candidate["start"]), int(candidate["end"])
+                    source = str(candidate["source"])
+                    if original_text[start:end] != source:
+                        raise FormulaError("Reviewed source no longer matches the paragraph span")
+                    linear = str(candidate.get("linear", source))
+                    in_table = bool(paragraph.xpath("ancestor::w:tc", namespaces=NS))
+                    is_display = bool(candidate.get("display")) and source.strip() == original_text.strip()
+                    outside_formula = original_text[:start] + original_text[end:]
+                    covers_formula_paragraph = not outside_formula.strip(TRIM_PUNCT)
+                    reviewed_lines = split_multiline_formula(linear)
+                    explicit_multiline = len(reviewed_lines) > 1
+                    table_lines = reviewed_lines
+                    if (
+                        not explicit_multiline
+                        and in_table
+                        and covers_formula_paragraph
+                        and estimated_formula_width(linear) > 65
+                    ):
+                        table_lines = split_top_level_additive(linear)
+                    line_equations = [
+                        mathml_to_omml(
+                            formula_to_mathml(
+                                line,
+                                aliases=alias_profile.aliases if alias_profile is not None else None,
+                            ),
+                            transform,
+                        )
+                        for line in table_lines
+                    ]
+                    if explicit_multiline:
+                        equations = [combine_equation_array(line_equations)]
+                        layout = "equation_array"
+                    else:
+                        equations = line_equations
+                        layout = "line_breaks" if len(equations) > 1 else "single"
+                    if in_table:
+                        for equation in equations:
+                            set_math_font_size(equation, 16)
+                    if explicit_multiline and is_display:
+                        replace_display_paragraph(paragraph, equations[0])
+                    elif explicit_multiline:
+                        replace_inline_span(paragraph, start, end, equations[0])
+                    elif len(equations) > 1:
+                        replace_multiline_table_formula(paragraph, equations, original_text[end:])
+                    elif is_display:
+                        omath = equations[0]
+                        replace_display_paragraph(paragraph, omath)
+                    else:
+                        omath = equations[0]
+                        replace_inline_span(paragraph, start, end, omath)
+                    line_count = len(table_lines)
+                    converted.append(
+                        {
+                            "id": candidate.get("id"),
+                            "source": source,
+                            "part": part_name,
+                            "lines": line_count,
+                            "layout": layout,
+                        }
                     )
-                    for line in table_lines
-                ]
-                if explicit_multiline:
-                    equations = [combine_equation_array(line_equations)]
-                    layout = "equation_array"
-                else:
-                    equations = line_equations
-                    layout = "line_breaks" if len(equations) > 1 else "single"
-                if in_table:
-                    for equation in equations:
-                        set_math_font_size(equation, 16)
-                if explicit_multiline and is_display:
-                    replace_display_paragraph(paragraph, equations[0])
-                elif explicit_multiline:
-                    replace_inline_span(paragraph, start, end, equations[0])
-                elif len(equations) > 1:
-                    replace_multiline_table_formula(paragraph, equations, original_text[end:])
-                elif is_display:
-                    omath = equations[0]
-                    replace_display_paragraph(paragraph, omath)
-                else:
-                    omath = equations[0]
-                    replace_inline_span(paragraph, start, end, omath)
-                line_count = len(table_lines)
-                converted.append(
-                    {
-                        "id": candidate.get("id"),
-                        "source": source,
-                        "part": part_name,
-                        "lines": line_count,
-                        "layout": layout,
-                    }
-                )
-                formulas.append(
-                    _formula_report_item(
-                        candidate,
-                        status="converted",
-                        lines=line_count,
-                        layout=layout,
+                    formulas.append(
+                        _formula_report_item(
+                            candidate,
+                            status="converted",
+                            lines=line_count,
+                            layout=layout,
+                        )
                     )
-                )
-            except Exception as exc:
-                error = str(exc)
-                skipped.append({"id": candidate.get("id"), "source": candidate.get("source"), "error": error})
-                formulas.append(
-                    _formula_report_item(
-                        candidate,
-                        status="failed",
-                        message=error,
-                        error_details=_error_details(exc),
-                        warning_code="conversion_failed",
+                except Exception as exc:
+                    error = str(exc)
+                    skipped.append(
+                        {"id": candidate.get("id"), "source": candidate.get("source"), "error": error}
                     )
-                )
-        parts[part_name] = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+                    formulas.append(
+                        _formula_report_item(
+                            candidate,
+                            status="failed",
+                            message=error,
+                            error_details=_error_details(exc),
+                            warning_code="conversion_failed",
+                        )
+                    )
+        parts[part_name] = etree.tostring(
+            root,
+            xml_declaration=True,
+            encoding="UTF-8",
+            standalone=True,
+        )
 
     output_written = False
     strict_failed = strict and bool(skipped)

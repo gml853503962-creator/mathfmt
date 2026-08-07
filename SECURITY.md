@@ -2,7 +2,8 @@
 
 ## Supported versions
 
-Security fixes are provided for the latest released version.
+MathFmt 1.x is the supported stable line. Users should run the latest available 1.x
+release; pre-1.0 versions are unsupported.
 
 ## Reporting a vulnerability
 

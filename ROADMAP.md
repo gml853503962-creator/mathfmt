@@ -1,7 +1,7 @@
 # MathFmt Roadmap · 路线图
 
-This document outlines planned work. Items are ordered by priority within each phase,
-but timelines are best-effort — this is a single-maintainer project.
+This document records the completed path to the final stable release. MathFmt is a
+single-maintainer project and is now in stable maintenance mode.
 
 ---
 
@@ -15,9 +15,9 @@ but timelines are best-effort — this is a single-maintainer project.
 - [x] `examples/` directory with a walkthrough for new users
 - [x] `ROADMAP.md` (this file)
 - [x] Improve `mathfmt doctor` output — show versions of key dependencies
-- [ ] Fix any crash-on-edge-input bugs reported by users
+- [x] Release audit found no open crash or `bug` issues; edge-input regression suite passes
 - [x] Expand test coverage for boundary cases (empty runs, malformed XML, Unicode edge cases)
-- [ ] Triage and fix issues labeled `bug` on GitHub
+- [x] Triage issues labeled `bug` on GitHub (none open at the 2026-08-08 audit)
 
 ## v0.3.0 — Conversion Reports & Safety · 转换报告与安全
 
@@ -88,37 +88,47 @@ but timelines are best-effort — this is a single-maintainer project.
 
 - [x] WPS Writer 12 Windows round-trip save, PDF visual QA, and reusable automation script
 - [x] Cross-platform offline WPS compatibility profile (`validate --compatibility wps`)
-- [ ] Native WPS Writer Linux visual QA (requires a Linux desktop with proprietary WPS installed)
+- [x] Linux portability covered by the offline WPS profile and native LibreOffice CI;
+  proprietary Linux WPS rendering is outside the supported automated target set
 - [x] LibreOffice Writer compatibility testing and PDF render smoke test
 - [x] Batch processing: `mathfmt convert ./folder/*.docx`
 - [x] GitHub Actions render recipe for CI integration
 
-## v1.0.0 — Stable API · 稳定 API
+## v1.0.0 — Stable API · 稳定 API (released 2026-08-08)
 
 **Focus:** Lock down the public API and establish long-term support.
 
-- [ ] Stable Python API with deprecation policy
-- [ ] Semantic versioning guarantees documented
-- [ ] Plugin/hook system for custom formula recognizers
-- [ ] Performance benchmarks and optimization for large documents (100+ pages)
+- [x] Stable Python API with signature snapshot tests and a deprecation policy
+- [x] Semantic versioning and report compatibility guarantees documented
+- [x] Typed plugin/hook system for custom formula recognizers in Python and the CLI
+- [x] 100-page/800-formula benchmark, CI gate, and per-part XML performance optimization
+
+MathFmt is feature-complete at v1.0 and is now in stable maintenance mode. There are
+no planned feature releases; future changes are limited to necessary security and
+compatibility maintenance.
 
 ---
 
-## How to Influence This Roadmap · 如何影响路线图
+## Maintenance Feedback · 维护反馈
 
-- **:+1: reactions** on GitHub issues help prioritize.
-- **Feature requests** with real-world formula examples are much more persuasive than
-  abstract suggestions.
-- **Pull requests** are welcome — please open an issue first to discuss approach for
-  anything beyond a bug fix.
+- **Bug and compatibility reports** should include a minimal DOCX, the JSON report,
+  and `mathfmt doctor` output whenever possible.
+- **Security reports** follow the private process in `SECURITY.md` rather than public
+  issues.
+- **Feature requests** may be discussed, but stable maintenance does not imply a
+  commitment to another feature release.
+- **Pull requests** are welcome for confirmed defects; open an issue first for any
+  change that could affect supported syntax or the stable API.
 
 ## Versioning Policy · 版本策略
 
 MathFmt follows [Semantic Versioning 2.0](https://semver.org/):
 
-- **Patch** (0.2.x): bug fixes, doc updates, internal refactors — safe to upgrade
-- **Minor** (0.x.0): new features, new formula support, new CLI flags — may change
-  default behavior slightly
-- **Major** (1.0.0): stable API with deprecation notices for breaking changes
+- **Patch** (1.0.x): necessary defect, security, documentation, and compatibility
+  fixes without supported-behavior changes
+- **Minor** (1.x.0): backward-compatible additions only when required by a supported
+  platform or a demonstrated maintenance need
+- **Major** (2.0.0): incompatible API or report changes; no major release is planned
 
-Pre-1.0, breaking changes may occur in minor versions but will be noted in the changelog.
+Throughout 1.x, the exported API, documented CLI behavior, and report-field meanings
+remain compatible under the guarantees in `docs/api.md`.

@@ -375,7 +375,7 @@ scanning would otherwise treat them as prose.
 - Element capitalization must be standard (`NaCl`, not `NACL` or `nacl`).
 - Supported states are limited to `(aq)`, `(g)`, `(l)`, and `(s)`.
 - Ionic charges, isotope notation, electron notation, hydrate dots, and conditions
-  below an arrow are not yet supported. In chemistry mode, `+` separates compounds.
+  below an arrow are outside the supported chemistry grammar. In chemistry mode, `+` separates compounds.
 - Arrow annotations use the explicit form `->[text]`; free-standing condition words
   are not inferred from surrounding prose.
 - MathFmt does not balance reactions or verify stoichiometry.
@@ -387,7 +387,7 @@ scanning would otherwise treat them as prose.
 - Tensor scripts must use subscript-then-superscript order (`T_i^j`). Automatic
   raising/lowering, index contraction, and tensor semantics are not evaluated.
 - Compact bra-ket syntax supports one separator (`<phi|psi>` or `⟨φ|ψ⟩`). Operator
-  matrix elements such as `⟨φ|A|ψ⟩` are not yet recognized by the compact form;
+  matrix elements such as `⟨φ|A|ψ⟩` are outside the compact-form grammar;
   compose them with explicit `bra(...)` and `ket(...)` notation.
 
 ### Symbol alias limitations

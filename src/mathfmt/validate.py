@@ -252,25 +252,39 @@ def _validate_coverage(
     ok_candidates = [c for c in candidates if c.get("parse_status") == "ok"]
     result["candidates_total"] = len(ok_candidates)
 
+    # Parse each referenced OOXML part once.  Large review reports can contain
+    # thousands of candidates in one document part; reparsing the complete XML
+    # for every candidate made coverage validation scale quadratically in
+    # document size.
+    paragraph_texts: dict[str, list[str]] = {}
+    for part_name in {str(candidate.get("part", "")) for candidate in ok_candidates}:
+        raw = parts.get(part_name)
+        if raw is None:
+            continue
+        try:
+            root = parse_xml_part(raw, part_name=part_name)
+        except (etree.XMLSyntaxError, DocxSecurityError):
+            continue
+        paragraph_texts[part_name] = [
+            paragraph_text(paragraph) for paragraph in root.xpath(".//w:p", namespaces=NS)
+        ]
+
     for candidate in ok_candidates:
         source = str(candidate.get("source", ""))
         linear = str(candidate.get("linear", source))
         part_name = str(candidate.get("part", ""))
-        raw = parts.get(part_name)
-
         # Check source matches DOCX
-        if raw is not None:
+        paragraphs = paragraph_texts.get(part_name)
+        if paragraphs is not None:
             try:
-                root = parse_xml_part(raw, part_name=part_name)
-                paragraphs = root.xpath(".//w:p", namespaces=NS)
                 idx = int(candidate.get("paragraph_index", -1))
                 if 0 <= idx < len(paragraphs):
-                    text = paragraph_text(paragraphs[idx])
+                    text = paragraphs[idx]
                     start = int(candidate.get("start", 0))
                     end = int(candidate.get("end", 0))
                     if text[start:end] != source:
                         result["stale_source"] += 1
-            except (etree.XMLSyntaxError, ValueError, IndexError):
+            except (ValueError, IndexError):
                 pass
 
         # Check parseable

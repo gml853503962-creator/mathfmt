@@ -1,0 +1,1 @@
+"""Reproducible MathFmt performance benchmarks."""

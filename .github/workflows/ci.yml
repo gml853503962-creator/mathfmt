@@ -17,12 +17,13 @@ jobs:
           - { os: windows-latest, python-version: "3.11" }
           - { os: windows-latest, python-version: "3.12" }
           - { os: windows-latest, python-version: "3.13" }
+          - { os: windows-latest, python-version: "3.14" }
           - { os: ubuntu-latest, python-version: "3.10" }
-          - { os: ubuntu-latest, python-version: "3.13" }
+          - { os: ubuntu-latest, python-version: "3.14" }
           - { os: macos-latest, python-version: "3.10" }
-          - { os: macos-latest, python-version: "3.13" }
+          - { os: macos-latest, python-version: "3.14" }
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
@@ -59,10 +60,10 @@ jobs:
   package:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - run: python -m pip install build
       - run: python -m build
       - run: python -m pip install dist/*.whl
@@ -74,11 +75,36 @@ jobs:
           name: python-package
           path: dist/
 
+  performance:
+    name: 100-page performance gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+      - run: python -m pip install -e ".[dev]"
+      - name: Benchmark scan, conversion, and validation
+        run: |
+          python benchmarks/benchmark_large_docx.py \
+            --pages 100 \
+            --formulas-per-page 8 \
+            --max-scan-seconds 5 \
+            --max-apply-seconds 5 \
+            --max-validate-seconds 8 \
+            --max-peak-memory-mb 256 \
+            --json work/performance-v1.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: performance-v1
+          path: work/performance-v1.json
+
   libreoffice-render:
     name: LibreOffice render smoke test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
