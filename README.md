@@ -98,8 +98,9 @@ name, absolute path, symbol count, and SHA-256 digest.
 
 ## Status
 
-**Beta (v0.4.0).** Cross-platform OMML, structured safety reports, explicit LaTeX delimiters,
-aligned and piecewise equations, chemistry and physics notation, and custom symbol aliases.
+**Beta (v0.5.0).** Cross-platform OMML, structured safety reports, batch conversion,
+WPS compatibility checks, explicit LaTeX delimiters, aligned and piecewise equations,
+chemistry and physics notation, and custom symbol aliases.
 
 ---
 
@@ -183,7 +184,7 @@ pip install --upgrade mathfmt
 | **0.2.3** (2026-06-22) | Parser 修复（省略号/阶乘/大型算子/边界/深度）；文档与示例完善 |
 | **0.3.0** (2026-06-25) | 结构化转换报告；dry-run 预览；严格模式；失败公式提示；更好的错误信息 |
 | **0.4.0** (2026-08-06) | LaTeX 分隔符；多行对齐；分段函数；化学与物理记号；自定义符号别名 |
-| **0.5.0**（开发中） | 批量转换；WPS 离线兼容性检查与 Windows 往返渲染验收 |
+| **0.5.0** (2026-08-07) | 批量转换；WPS 离线兼容性检查与 Windows 往返渲染验收 |
 | **1.0.0** (2027) | 稳定 API；长期支持 |
 
 ### 更多文档
@@ -284,7 +285,7 @@ pip install --upgrade mathfmt
 | **0.2.3** (2026-06-22) | Parser fixes (ellipsis, factorial, n-ary, 1(t), x_bar, boundary); depth validation; docs & examples |
 | **0.3.0** (2026-06-25) | Structured conversion reports; dry-run preview; strict mode; failed-formula warnings; better errors |
 | **0.4.0** (2026-08-06) | LaTeX delimiters, aligned and piecewise equations, chemistry and physics notation, and symbol aliases |
-| **0.5.0** (in development) | Batch conversion, offline WPS compatibility lint, and Windows WPS round-trip rendering QA |
+| **0.5.0** (2026-08-07) | Batch conversion, offline WPS compatibility lint, and Windows WPS round-trip rendering QA |
 | **1.0.0** (2027) | Stable API; long-term support |
 
 ### Further Reading

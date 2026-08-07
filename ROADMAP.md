@@ -82,7 +82,7 @@ but timelines are best-effort — this is a single-maintainer project.
 - [x] Improved Unicode symbol mapping for common number sets and relation/set operators
 - [x] User-extensible symbol aliases (e.g. custom shorthand → MathML)
 
-## v0.5.0 — Compatibility & Integration · 兼容性与集成
+## v0.5.0 — Compatibility & Integration · 兼容性与集成 (released 2026-08-07)
 
 **Focus:** Work well in more environments and toolchains.
 

@@ -4,6 +4,8 @@ All notable changes to MathFmt are documented here.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-07
+
 ### Added
 - `mathfmt convert` accepts multiple DOCX files, quoted glob patterns, and directories,
   with recursive discovery, centralized output/report directories, collision checks,
