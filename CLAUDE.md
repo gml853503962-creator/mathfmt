@@ -7,10 +7,10 @@
 MathFmt is a Python CLI tool & library that converts plain-text math formulas (e.g. `x^2+1`, `sqrt(a/b)`, `lim(x->0)`) embedded in `.docx` files into native Office Math Markup Language (OMML) equations. Designed for textbooks, exams, and technical reports.
 
 - **Author:** Leo (gml853503962@gmail.com)
-- **Version:** 0.3.0 (see `src/mathfmt/_version.py`)
+- **Version:** 1.0.0 (see `src/mathfmt/_version.py`)
 - **License:** MIT
 - **Repo:** https://github.com/gml853503962-creator/mathfmt
-- **Python:** ≥3.10 (pure Python, no native extensions)
+- **Python:** 3.10–3.14 (pure Python, no native extensions)
 - **Sole runtime dependency:** `lxml >= 5.0`
 - **Dev dependencies:** `build`, `pytest`, `pytest-cov`, `ruff`
 
@@ -20,15 +20,16 @@ MathFmt is a Python CLI tool & library that converts plain-text math formulas (e
 
 ```
 MathFmt/
-├── src/mathfmt/           # Package source (10 files)
-│   ├── __init__.py        # Public API exports (9 symbols)
-│   ├── _version.py        # Single version source: "0.4.0"
+├── src/mathfmt/           # Package source (11 files)
+│   ├── __init__.py        # Stable public API exports (18 symbols)
+│   ├── _version.py        # Single version source: "1.0.0"
 │   ├── __main__.py        # `python -m mathfmt` entry point
 │   ├── cli.py             # argparse CLI: 6 subcommands
 │   ├── aliases.py         # Validated user symbol-alias profiles
 │   ├── core.py            # Formula parser, scanner, and conversion pipeline
 │   ├── docxio.py          # Bounded ZIP I/O and hardened OOXML parsing
 │   ├── omml.py            # Pure-Python MathML→OMML converter
+│   ├── plugins.py         # Stable custom-recognizer extension API
 │   ├── update.py          # Self-update checker (GitHub Releases API)
 │   └── validate.py        # Multi-layer DOCX/OMML validator
 ├── tests/                 # pytest unit and acceptance suite
@@ -37,16 +38,20 @@ MathFmt/
 │   ├── test_docxio.py, test_omml.py, test_skill.py, test_update.py, test_validate.py
 ├── docs/
 │   ├── formula-syntax.md  # Complete grammar reference, preprocessing, MathML mapping
-│   └── workflow.md        # Install, scan/review/apply cycle, CI usage, troubleshooting
+│   ├── workflow.md        # Install, scan/review/apply cycle, CI usage, troubleshooting
+│   ├── api.md             # 1.x stability and deprecation contract
+│   ├── plugins.md         # Custom recognizer protocol and CLI loading
+│   └── performance.md     # 100-page benchmark and CI gate
+├── benchmarks/            # Reproducible large-DOCX performance workload
 ├── skills/mathfmt/        # Claude Code skill
 │   ├── SKILL.md           # Skill workflow instructions
 │   ├── agents/openai.yaml # Agent interface
 │   └── references/paper-notation.md  # Design conventions
 ├── examples/
 │   └── README.md          # New-user walkthrough: test doc → scan → apply
-├── ROADMAP.md             # Phased version plan (v0.2.x → v1.0.0)
+├── ROADMAP.md             # Release history and stable-maintenance status
 ├── .github/workflows/
-│   ├── ci.yml             # CI: 8 test matrix jobs + 1 package smoke-test job
+│   ├── ci.yml             # CI: 9-version matrix + package/performance/render jobs
 │   └── publish.yml        # CD: tag → PyPI + GitHub Release
 ├── .claude/
 │   ├── memory.md          # Project lessons learned (5 items)
@@ -61,7 +66,7 @@ MathFmt/
 
 ## Architecture — Module Responsibilities
 
-### `core.py` — The engine (~950 lines)
+### `core.py` — The engine
 The heart of the project. Data flow:
 1. **Preprocessing** — derivative normalization (`ds/dt` → Leibniz form), Unicode sub/superscript → ASCII, operator aliases
 2. **Tokenization** — regex-based lexer
@@ -75,6 +80,8 @@ Key functions exported via `__init__.py`:
 - `formula_to_mathml(source)` → parse single formula → MathML element
 - `mathml_to_omml(math, transform=None)` → convert MathML → OMML (auto-selects backend)
 - `find_xsl(explicit=None)` → locate Office MML2OMML.XSL if available
+- `validate_docx(...)` → validate structure, formula coverage, and compatibility
+- `FormulaRecognizer` / `FormulaCandidate` → typed custom candidate detection
 
 ### `omml.py` — Built-in MathML→OMML converter
 Pure Python, no Office required. Cross-platform default backend. Key function:
@@ -92,11 +99,12 @@ Six subcommands via `argparse`:
 | `mathfmt update` | Check for newer version on GitHub |
 
 ### `validate.py` — Validator
-Four validation layers:
+Five validation layers:
 1. ZIP package integrity
 2. OMML structural checks
 3. Formula coverage analysis
 4. Cross-backend comparison (Python vs Office XSL)
+5. Optional WPS portability lint
 
 ### `update.py` — Self-update checker
 - Polls GitHub Releases API
@@ -158,7 +166,7 @@ When available, the Office XSL backend generally produces output closer to Word'
 
 ## CI/CD
 
-- **CI** (`.github/workflows/ci.yml`): Triggers on push/PR to main. 8 jobs: Windows (3.10–3.13), Ubuntu (3.10, 3.13), macOS (3.10, 3.13). Runs ruff → pytest → build check → package smoke test.
+- **CI** (`.github/workflows/ci.yml`): Triggers on push/PR. Tests Windows 3.10–3.14 plus Ubuntu/macOS 3.10 and 3.14, then runs package, 100-page performance, native-XSL, and LibreOffice render gates.
 - **CD** (`.github/workflows/publish.yml`): Triggers on tag push `v*`. Builds → publishes to PyPI via Trusted Publishing → creates GitHub Release.
 
 ---

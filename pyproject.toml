@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 authors = [{ name = "Leo", email = "gml853503962@gmail.com" }]
 keywords = ["docx", "word", "math", "omml", "equation", "typesetting", "cross-platform"]
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "Development Status :: 5 - Production/Stable",
   "Environment :: Console",
   "Intended Audience :: Education",
   "Intended Audience :: Science/Research",
@@ -25,6 +25,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Topic :: Office/Business :: Office Suites",
   "Topic :: Text Processing :: Markup :: XML",
 ]

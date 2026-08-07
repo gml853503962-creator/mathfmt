@@ -10,12 +10,15 @@ the source document and inspect the rendered result.
 
 ## Workflow
 
-1. Run `mathfmt doctor` and resolve a missing `MML2OMML.XSL` with `--xsl PATH`.
+1. Run `mathfmt doctor`. The built-in backend is always available; use `--xsl PATH`
+   only when the optional Microsoft Office transform is intentionally required.
 2. Use `mathfmt convert input.docx` only when conservative automatic selection is appropriate.
 3. For mixed technical prose, run `mathfmt scan input.docx --report candidates.json`, review the JSON,
    then run `mathfmt apply input.docx --review candidates.json --output output.docx --report result.json`.
 4. Keep code, image formulas, and existing native Word equations unchanged.
 5. Inspect the result report and render every output page before delivery.
+6. Run `mathfmt validate output.docx --compatibility wps` before delivery when the
+   document may be opened in WPS or a non-Word office suite.
 
 Read `references/paper-notation.md` when reviewing notation or correcting a candidate's `linear` value.
 

@@ -4,6 +4,29 @@ All notable changes to MathFmt are documented here.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-08
+
+### Added
+- Stable, snapshot-tested top-level Python API with documented Semantic Versioning,
+  report compatibility, exception boundaries, and a deprecation policy.
+- Typed custom formula recognizers through `FormulaRecognizer` and
+  `FormulaCandidate`, repeatable `--recognizer module:object` CLI options,
+  deterministic overlap handling, strict plugin validation, and report provenance.
+- Reproducible 100-page/800-formula performance benchmark with time, correctness,
+  WPS compatibility, and peak-memory gates in GitHub Actions.
+- Python 3.14 support across package metadata and the Windows/macOS/Linux CI matrix.
+
+### Changed
+- Package status is now Production/Stable.
+- Large-document conversion parses and serializes each OOXML part once instead of
+  once per paragraph; coverage validation also caches paragraph text per part.
+- Conversion reports preserve recognizer provenance from the source review.
+
+### Performance
+- On the v1.0 Windows reference run, the 100-page/800-formula workflow completes in
+  5.21 seconds with 5.9 MiB peak traced memory (scan 1.13 s, apply 1.33 s,
+  validate 2.75 s).
+
 ## [0.5.0] - 2026-08-07
 
 ### Added

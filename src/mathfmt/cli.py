@@ -18,6 +18,7 @@ from lxml import etree
 from . import __version__
 from .aliases import AliasProfile, load_alias_profile
 from .core import apply_docx, find_xsl, scan_docx
+from .plugins import FormulaRecognizer, load_recognizer, recognizers_metadata
 from .update import check_for_updates
 from .validate import validate_docx
 
@@ -28,6 +29,11 @@ def default_output(input_path: Path) -> Path:
 
 def default_result_report(output_path: Path) -> Path:
     return output_path.with_name(f"{output_path.stem}.report.json")
+
+
+def load_recognizers(specs: Sequence[str]) -> tuple[FormulaRecognizer, ...]:
+    """Load ordered CLI recognizer specifications."""
+    return tuple(load_recognizer(spec) for spec in specs)
 
 
 def _contains_glob(path: Path) -> bool:
@@ -144,6 +150,13 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("input", type=Path)
     scan.add_argument("--report", type=Path, required=True)
     scan.add_argument("--aliases", type=Path, help="JSON symbol alias profile")
+    scan.add_argument(
+        "--recognizer",
+        action="append",
+        default=[],
+        metavar="MODULE:OBJECT",
+        help="trusted custom formula recognizer (repeatable; evaluated in order)",
+    )
 
     apply = subparsers.add_parser("apply", help="apply a reviewed candidate report")
     apply.add_argument("input", type=Path)
@@ -171,6 +184,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     convert.add_argument("--xsl", type=Path)
     convert.add_argument("--aliases", type=Path, help="JSON symbol alias profile")
+    convert.add_argument(
+        "--recognizer",
+        action="append",
+        default=[],
+        metavar="MODULE:OBJECT",
+        help="trusted custom formula recognizer (repeatable; evaluated in order)",
+    )
     convert.add_argument(
         "--confidence",
         choices=["high", "medium", "all"],
@@ -217,10 +237,16 @@ def _convert_one(
     strict: bool,
     xsl: Path | None,
     alias_profile: AliasProfile | None,
+    recognizers: Sequence[FormulaRecognizer],
 ) -> tuple[dict[str, object], dict[str, object], int]:
     with tempfile.TemporaryDirectory(prefix="mathfmt-") as temp_dir:
         review_path = Path(temp_dir) / "candidates.json"
-        scan = scan_docx(input_path, review_path, alias_profile=alias_profile)
+        scan = scan_docx(
+            input_path,
+            review_path,
+            alias_profile=alias_profile,
+            recognizers=recognizers,
+        )
         if confidence != "all":
             review = json.loads(review_path.read_text(encoding="utf-8"))
             confidence_order = {"high": 0, "medium": 1, "low": 2}
@@ -258,6 +284,7 @@ def run_convert(args: argparse.Namespace) -> int:
         report_dir=args.report_dir,
     )
     alias_profile = load_alias_profile(args.aliases) if args.aliases is not None else None
+    recognizers = load_recognizers(args.recognizer)
     if args.xsl is not None:
         xsl = find_xsl(args.xsl)
     else:
@@ -276,6 +303,7 @@ def run_convert(args: argparse.Namespace) -> int:
             strict=args.strict,
             xsl=xsl,
             alias_profile=alias_profile,
+            recognizers=recognizers,
         )
         print(f"Candidates: {scan['summary']['candidates']}")
         print(f"Converted: {result['converted_count']}")
@@ -300,6 +328,7 @@ def run_convert(args: argparse.Namespace) -> int:
                 strict=args.strict,
                 xsl=xsl,
                 alias_profile=alias_profile,
+                recognizers=recognizers,
             )
             converted_count = int(result["converted_count"])
             skipped_count = int(result["skipped_count"])
@@ -348,6 +377,8 @@ def run_convert(args: argparse.Namespace) -> int:
             "confidence": args.confidence,
             "strict": args.strict,
             "backend": "office-xsl" if xsl is not None else "python",
+            "alias_profile": alias_profile.metadata() if alias_profile is not None else None,
+            "recognizers": recognizers_metadata(recognizers),
             "output_dir": str(args.output_dir.resolve()) if args.output_dir is not None else None,
             "report_dir": str(args.report_dir.resolve()) if args.report_dir is not None else None,
         },
@@ -381,7 +412,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "scan":
             alias_profile = load_alias_profile(args.aliases) if args.aliases is not None else None
-            report = scan_docx(args.input, args.report, alias_profile=alias_profile)
+            recognizers = load_recognizers(args.recognizer)
+            report = scan_docx(
+                args.input,
+                args.report,
+                alias_profile=alias_profile,
+                recognizers=recognizers,
+            )
             print(f"Candidates: {report['summary']['candidates']}")
             print(f"Report: {args.report}")
             return 0

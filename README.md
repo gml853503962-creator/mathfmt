@@ -25,7 +25,7 @@ MathFmt is for you.
 pip install mathfmt
 ```
 
-Requirements: Python ≥ 3.10. The only runtime dependency is `lxml`.
+Requirements: Python 3.10–3.14. The only runtime dependency is `lxml`.
 
 ### Check your environment · 检查环境
 
@@ -94,13 +94,17 @@ Alias tokens may add one Unicode mathematical symbol but cannot replace MathFmt
 keywords such as `sqrt`, `lim`, `sum`, or `partial`. Reports record the profile
 name, absolute path, symbol count, and SHA-256 digest.
 
+MathFmt 1.0 also supports trusted custom formula recognizers through repeatable
+`--recognizer module:object` options or the stable Python API. See
+[docs/plugins.md](docs/plugins.md) for the typed plugin contract and conflict rules.
+
 ---
 
 ## Status
 
-**Beta (v0.5.0).** Cross-platform OMML, structured safety reports, batch conversion,
-WPS compatibility checks, explicit LaTeX delimiters, aligned and piecewise equations,
-chemistry and physics notation, and custom symbol aliases.
+**Stable (v1.0.0).** Feature-complete cross-platform OMML conversion with a stable
+Python API, deterministic custom recognizers, structured safety reports, batch
+processing, WPS/LibreOffice compatibility checks, and a 100-page performance gate.
 
 ---
 
@@ -131,7 +135,7 @@ MathFmt 将 DOCX 中的普通文本公式排版为 Word 原生 OMML 公式。
 
 | | Windows 10/11 | macOS | Linux |
 |---|---|---|---|
-| Python 3.10–3.13 | ✔ | ✔ | ✔ |
+| Python 3.10–3.14 | ✔ | ✔ | ✔ |
 | 公式扫描 | ✔ | ✔ | ✔ |
 | OMML 公式输出（内置 Python 后端） | ✔ | ✔ | ✔ |
 | OMML 公式输出（Office XSL 后端） | ✔ | ✔¹ | ✔¹ |
@@ -147,6 +151,7 @@ MathFmt 将 DOCX 中的普通文本公式排版为 Word 原生 OMML 公式。
 
 ```powershell
 mathfmt scan    input.docx --report candidates.json   # 扫描公式候选
+mathfmt scan    input.docx --report candidates.json --recognizer my_plugin:Recognizer  # 自定义识别器
 mathfmt apply   input.docx --review candidates.json --report preview.json --dry-run  # 仅预览，不写 DOCX
 mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json  # 审核后转换
 mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json --strict  # 失败则不写输出
@@ -185,17 +190,21 @@ pip install --upgrade mathfmt
 | **0.3.0** (2026-06-25) | 结构化转换报告；dry-run 预览；严格模式；失败公式提示；更好的错误信息 |
 | **0.4.0** (2026-08-06) | LaTeX 分隔符；多行对齐；分段函数；化学与物理记号；自定义符号别名 |
 | **0.5.0** (2026-08-07) | 批量转换；WPS 离线兼容性检查与 Windows 往返渲染验收 |
-| **1.0.0** (2027) | 稳定 API；长期支持 |
+| **1.0.0** (2026-08-08) | 稳定 API 与 SemVer；插件钩子；100 页性能门禁；Python 3.14 |
 
 ### 更多文档
 
 - [公式语法参考](docs/formula-syntax.md) — 完整预处理规则、语法、MathML 映射和限制
 - [工作流指南](docs/workflow.md) — 安装、审核流程、错误处理、CI 使用
+- [稳定 API](docs/api.md) — 1.x 兼容承诺、弃用政策和异常边界
+- [自定义识别器](docs/plugins.md) — 类型化插件 API、CLI 加载和冲突规则
+- [性能](docs/performance.md) — 100 页/800 公式基准与 CI 门禁
 - [示例](examples/README.md) — 从零开始的测试文档准备和转换教程
 - [路线图](ROADMAP.md) — 版本规划与功能展望
 
 ### 维护
 
+v1.0 已进入稳定维护模式，没有计划中的功能版本；仅在必要时处理安全或兼容性问题。
 单人维护（Leo），尽力响应。欢迎提交 Issue 和 PR，也可通过
 [gml853503962@gmail.com](mailto:gml853503962@gmail.com) 联系。安全漏洞请参阅
 [SECURITY.md](SECURITY.md)。
@@ -232,7 +241,7 @@ MathFmt converts plain-text formulas in DOCX files into native Word OMML equatio
 
 | | Windows 10/11 | macOS | Linux |
 |---|---|---|---|
-| Python 3.10–3.13 | ✔ | ✔ | ✔ |
+| Python 3.10–3.14 | ✔ | ✔ | ✔ |
 | Formula scanning | ✔ | ✔ | ✔ |
 | OMML output (built-in Python backend) | ✔ | ✔ | ✔ |
 | OMML output (Office XSL backend) | ✔ | ✔¹ | ✔¹ |
@@ -248,6 +257,7 @@ MathFmt converts plain-text formulas in DOCX files into native Word OMML equatio
 
 ```powershell
 mathfmt scan    input.docx --report candidates.json   # Scan formula candidates
+mathfmt scan    input.docx --report candidates.json --recognizer my_plugin:Recognizer  # Custom recognizer
 mathfmt apply   input.docx --review candidates.json --report preview.json --dry-run  # Preview only
 mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json  # Apply reviewed candidates
 mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json --strict  # Do not write output on failures
@@ -286,18 +296,23 @@ pip install --upgrade mathfmt
 | **0.3.0** (2026-06-25) | Structured conversion reports; dry-run preview; strict mode; failed-formula warnings; better errors |
 | **0.4.0** (2026-08-06) | LaTeX delimiters, aligned and piecewise equations, chemistry and physics notation, and symbol aliases |
 | **0.5.0** (2026-08-07) | Batch conversion, offline WPS compatibility lint, and Windows WPS round-trip rendering QA |
-| **1.0.0** (2027) | Stable API; long-term support |
+| **1.0.0** (2026-08-08) | Stable API and SemVer, plugin hooks, 100-page performance gate, Python 3.14 |
 
 ### Further Reading
 
 - [Formula Syntax Reference](docs/formula-syntax.md) — every preprocessing rule, the full grammar, MathML output mapping, and known limitations
 - [Workflow Guide](docs/workflow.md) — step-by-step install, review flow, troubleshooting, CI usage
+- [Stable API](docs/api.md) — 1.x compatibility contract, deprecation policy, and exception boundaries
+- [Custom Recognizers](docs/plugins.md) — typed plugin API, CLI loading, and deterministic conflicts
+- [Performance](docs/performance.md) — 100-page/800-formula benchmark and CI gate
 - [Examples](examples/README.md) — walkthrough from a blank test document to formatted output
-- [Roadmap](ROADMAP.md) — planned features and version timeline
+- [Roadmap](ROADMAP.md) — completed release history and stable-maintenance status
 
 ### Maintenance
 
-Single-maintainer project (Leo), best-effort response. Issues and pull requests are
+v1.0 is in stable maintenance mode with no planned feature releases; only necessary
+security or compatibility maintenance is expected. Single-maintainer project (Leo),
+best-effort response. Issues and pull requests are
 welcome. You can also contact the maintainer at
 [gml853503962@gmail.com](mailto:gml853503962@gmail.com). See
 [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), and

@@ -308,6 +308,7 @@ Batch exit codes:
 | `summary.drawing_paragraphs` | Paragraphs containing images or drawings (skipped) |
 | `summary.code_paragraphs` | Paragraphs identified as code (skipped) |
 | `profile.aliases` | Alias profile name, resolved path, SHA-256 digest, and symbol count, or `null` |
+| `profile.recognizers` | Ordered custom-recognizer names, modules, versions, and CLI specs |
 | `candidates[].source` | Original DOCX text span; explicit formulas keep `$...$` or `$$...$$` here |
 | `candidates[].linear` | Parsed formula text; explicit formulas remove the delimiters here |
 | `candidates[].display` | `true` if the formula fills the entire paragraph (renders as display equation) |
@@ -315,6 +316,8 @@ Batch exit codes:
 | `candidates[].multiline` | Whether `linear` contains multiple reviewed formula lines |
 | `candidates[].line_count` | Number of reviewed formula lines |
 | `candidates[].parse_status` | `"ok"` or `"review"` (see above) |
+| `candidates[].recognizer` | Custom recognizer name, or `null` for built-in detection |
+| `candidates[].recognizer_kind` | Optional plugin-defined candidate category |
 
 ### Apply report (`result.json`)
 
@@ -327,6 +330,7 @@ Batch exit codes:
 | `options.strict` | `true` when failures prevent DOCX output |
 | `inputs.aliases` | Resolved alias profile path, or `null` |
 | `options.alias_profile` | Alias profile metadata used for conversion, or `null` |
+| `options.recognizers` | Recognizer provenance copied from the scan report |
 | `summary.output_written` | Whether a DOCX output file was written |
 | `summary.strict_failed` | Whether strict mode blocked DOCX output |
 | `formulas[].status` | Per-formula result: `"converted"`, `"skipped"`, or `"failed"` |
@@ -365,7 +369,7 @@ The WPS profile rejects visible Word-only equation alignment markers, Word-only
 alignment controls, and embedded objects inside equation paragraphs. It also reports
 relation-less equation arrays that deserve a visual check.
 
-The repository CI also generates the v0.4 acceptance document, converts it with the
+The repository CI also generates the comprehensive notation acceptance document, converts it with the
 built-in backend, renders it through LibreOffice, and checks the resulting PDF for
 visible Word-only alignment markers. This complements structural validation with a
 repeatable cross-application rendering smoke test.
@@ -465,7 +469,8 @@ The `doctor --json` output is machine-readable:
 | `MML2OMML.XSL was not found` | Normal — the built-in Python backend is used automatically. To use Office XSL, pass `--xsl` |
 | `Refusing to overwrite the input DOCX` | MathFmt never overwrites the source; choose a different `--output` path |
 | `Input must be a .docx file` | MathFmt only handles `.docx` (Office Open XML); convert older `.doc` files first |
-| `Alias profile must be a .json file` | Use the documented JSON structure; TOML and other formats are not yet supported |
+| `Alias profile must be a .json file` | Alias profiles intentionally use the documented strict JSON format |
+| `Recognizer must use the form module:object` | Pass a trusted importable recognizer such as `my_plugin:Recognizer`; see `docs/plugins.md` |
 | `Review report uses alias profile ...` | Pass the same profile used for `scan` with `--aliases` |
 | `Alias profile ... does not match` | The profile changed after review; restore the reviewed file or scan again |
 | `Review report was created without an alias profile` | Re-run `scan --aliases ...`; aliases cannot be introduced only at apply time |
