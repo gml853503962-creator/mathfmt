@@ -94,7 +94,7 @@ jobs:
           python -c "from pathlib import Path; from tests.acceptance import gen_docs; gen_docs.OUT = Path('work/libreoffice-qa'); gen_docs.doc06_v040()"
           mathfmt scan work/libreoffice-qa/doc06_v040.docx --report work/libreoffice-qa/review.json
           mathfmt apply work/libreoffice-qa/doc06_v040.docx --review work/libreoffice-qa/review.json --output work/libreoffice-qa/formatted.docx --report work/libreoffice-qa/result.json --strict
-          mathfmt validate work/libreoffice-qa/formatted.docx --review work/libreoffice-qa/review.json --report work/libreoffice-qa/validation.json
+          mathfmt validate work/libreoffice-qa/formatted.docx --review work/libreoffice-qa/review.json --compatibility wps --report work/libreoffice-qa/validation.json
       - name: Render and reject visible Word-only alignment markers
         run: |
           mkdir -p /tmp/mathfmt-lo-profile

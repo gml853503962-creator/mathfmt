@@ -4,7 +4,7 @@ import pytest
 from lxml import etree
 
 from mathfmt.core import M_NS, formula_to_mathml, qname
-from mathfmt.omml import combine_equation_array, mathml_to_omml_py
+from mathfmt.omml import XML_NS, combine_equation_array, mathml_to_omml_py
 
 
 def omath_for(source: str) -> etree._Element:
@@ -241,7 +241,17 @@ def test_piecewise_produces_open_delimiter_and_two_column_matrix(source: str) ->
     rows = delimiter.xpath(".//m:m/m:mr", namespaces={"m": M_NS})
     assert len(rows) == 2
     assert all(len(row.xpath("./m:e", namespaces={"m": M_NS})) == 2 for row in rows)
-    assert "if " in "".join(delimiter.itertext())
+    assert "if\u00a0" in "".join(delimiter.itertext())
+
+
+def test_piecewise_preserves_condition_spacing_for_office_suites() -> None:
+    omath = omath_for("cases(0 if x<0; 1 if x>=0)")
+    condition_labels = [
+        node for node in omath.xpath(".//m:t", namespaces={"m": M_NS}) if (node.text or "").startswith("if")
+    ]
+
+    assert [node.text for node in condition_labels] == ["if\u00a0", "if\u00a0"]
+    assert all(node.get(qname(XML_NS, "space")) == "preserve" for node in condition_labels)
 
 
 def test_variable_with_numeric_suffix_is_subscript() -> None:

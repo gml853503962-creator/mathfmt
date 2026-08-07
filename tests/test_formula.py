@@ -126,7 +126,7 @@ def test_cases_function_notation() -> None:
 
     assert len(root.xpath(".//*[local-name()='mtr']")) == 2
     assert all(len(row) == 2 for row in root.xpath(".//*[local-name()='mtr']"))
-    assert "if " in "".join(root.itertext())
+    assert "if\u00a0" in "".join(root.itertext())
 
 
 @pytest.mark.parametrize(

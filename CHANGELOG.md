@@ -4,6 +4,19 @@ All notable changes to MathFmt are documented here.
 
 ## [Unreleased]
 
+### Added
+- `mathfmt convert` accepts multiple DOCX files, quoted glob patterns, and directories,
+  with recursive discovery, centralized output/report directories, collision checks,
+  per-file failure isolation, and an optional aggregate batch report.
+- `mathfmt validate --compatibility wps` adds an offline WPS portability profile for
+  Word-only alignment markers, alignment controls, and embedded equation objects.
+- `scripts/wps_roundtrip.ps1` performs a hidden WPS Writer DOCX round-trip and PDF
+  export without overwriting QA artifacts or terminating existing WPS processes.
+
+### Fixed
+- Piecewise condition labels use a non-breaking separator so WPS Writer does not
+  collapse `if x` into `ifx` during rendering or DOCX round-trips.
+
 ## [0.4.0] - 2026-08-06
 
 ### Added

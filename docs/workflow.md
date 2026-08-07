@@ -266,6 +266,34 @@ mathfmt convert input.docx --output final.docx --report conversion.json --aliase
 
 **Safety**: `convert` never overwrites the input file. The output name always differs from the input name.
 
+### Batch conversion
+
+Pass multiple files, a quoted glob, or a directory to convert a batch. Quoting the glob
+keeps behavior consistent between PowerShell, Command Prompt, and POSIX shells:
+
+```powershell
+mathfmt convert "notes/*.docx" `
+  --output-dir converted `
+  --report-dir reports `
+  --batch-report batch.json
+
+# Search all nested directories. Existing *.mathfmt.docx files found through a
+# directory scan are skipped so generated outputs are not processed again.
+mathfmt convert notes --recursive --output-dir converted --batch-report batch.json
+```
+
+Batch processing is deterministic and de-duplicates repeated inputs. It validates the
+complete output plan before writing anything, refuses output-name collisions, and never
+uses `--output` or `--report` for a batch; use their directory variants instead. A bad
+DOCX is recorded as a failed item while the remaining files continue. The aggregate
+report contains per-file input, output, report, status, exit code, and formula counts.
+
+Batch exit codes:
+
+- `0` — every file converted without skipped formulas
+- `1` — at least one file failed or strict conversion failed
+- `2` — no file failed, but at least one file completed with skipped formulas
+
 ---
 
 ## 4. Understanding the Report
@@ -327,6 +355,16 @@ Use `mathfmt validate` to check DOCX correctness without opening Word:
 mathfmt validate output.docx --report validation.json
 ```
 
+For WPS Writer portability checks, add the compatibility profile:
+
+```powershell
+mathfmt validate output.docx --compatibility wps --report validation-wps.json
+```
+
+The WPS profile rejects visible Word-only equation alignment markers, Word-only
+alignment controls, and embedded objects inside equation paragraphs. It also reports
+relation-less equation arrays that deserve a visual check.
+
 The repository CI also generates the v0.4 acceptance document, converts it with the
 built-in backend, renders it through LibreOffice, and checks the resulting PDF for
 visible Word-only alignment markers. This complements structural validation with a
@@ -347,11 +385,33 @@ It performs four checks:
 | OMML structure | Equation count, child checks, nesting depth | Empty equations, broken fractions, missing script parts |
 | Coverage | Formula parse & OMML round-trip (requires `--review`) | Unparseable sources, OMML generation failures |
 | Cross-backend | Python vs XSL element count (requires `--xsl`) | Structural divergence between backends |
+| Compatibility | Portable OMML checks (requires `--compatibility wps`) | Constructs known to render inconsistently in WPS/non-Word suites |
 
 Exit codes:
 - `0` — all checks passed
 - `1` — issues found (see report)
 - `2` — input is unreadable or not a DOCX
+
+### Native WPS Writer round-trip (Windows)
+
+When WPS Writer is installed, the repository script opens a DOCX through the hidden
+`KWps.Application` automation interface, saves a new DOCX, and exports a PDF. It refuses
+to overwrite existing QA artifacts and preserves pre-existing WPS processes:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/wps_roundtrip.ps1 `
+  -InputPath output.docx `
+  -OutputDirectory work/wps-qa
+
+mathfmt validate work/wps-qa/output.wps-roundtrip.docx `
+  --compatibility wps `
+  --report work/wps-qa/validation-wps.json
+```
+
+Inspect the exported `output.wps.pdf` for clipping, overlap, missing glyphs, visible
+alignment markers, and lost spacing. WPS Writer 12.0 on Windows was used for the v0.5
+acceptance pass. The offline compatibility profile is cross-platform; native Linux WPS
+rendering remains a manual environment-specific check.
 
 ---
 
