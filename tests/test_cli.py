@@ -451,3 +451,104 @@ def test_update_network_error_exits_2_without_check(
 
     monkeypatch.setattr(cli, "check_for_updates", lambda **kw: fake_info)
     assert cli.main(["update"]) == 2
+
+
+def test_convert_batch_glob_writes_outputs_and_aggregate_report(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    sources = tmp_path / "sources"
+    sources.mkdir()
+    make_docx(sources / "alpha.docx")
+    make_docx(sources / "beta.docx")
+    outputs = tmp_path / "outputs"
+    reports = tmp_path / "reports"
+    batch_report = tmp_path / "batch.json"
+
+    code = cli.main(
+        [
+            "convert",
+            str(sources / "*.docx"),
+            "--output-dir",
+            str(outputs),
+            "--report-dir",
+            str(reports),
+            "--batch-report",
+            str(batch_report),
+        ]
+    )
+
+    assert code == 0
+    assert (outputs / "alpha.mathfmt.docx").is_file()
+    assert (outputs / "beta.mathfmt.docx").is_file()
+    assert (reports / "alpha.mathfmt.report.json").is_file()
+    assert (reports / "beta.mathfmt.report.json").is_file()
+    data = json.loads(batch_report.read_text(encoding="utf-8"))
+    assert data["report_type"] == "batch_conversion"
+    assert data["summary"]["files"] == 2
+    assert data["summary"]["succeeded"] == 2
+    assert {item["status"] for item in data["files"]} == {"success"}
+    assert "Batch summary:" in capsys.readouterr().out
+
+
+def test_convert_directory_skips_existing_mathfmt_outputs(tmp_path: Path) -> None:
+    sources = tmp_path / "sources"
+    sources.mkdir()
+    make_docx(sources / "source.docx")
+    make_docx(sources / "old.mathfmt.docx")
+    expanded, batch_requested = cli.expand_convert_inputs([sources])
+
+    assert batch_requested is True
+    assert [path.name for path in expanded] == ["source.docx"]
+
+
+def test_convert_batch_continues_after_bad_docx(tmp_path: Path) -> None:
+    sources = tmp_path / "sources"
+    sources.mkdir()
+    (sources / "bad.docx").write_bytes(b"not-a-docx")
+    make_docx(sources / "good.docx")
+    outputs = tmp_path / "outputs"
+    batch_report = tmp_path / "batch.json"
+
+    code = cli.main(
+        [
+            "convert",
+            str(sources),
+            "--output-dir",
+            str(outputs),
+            "--batch-report",
+            str(batch_report),
+        ]
+    )
+
+    assert code == 1
+    assert (outputs / "good.mathfmt.docx").is_file()
+    data = json.loads(batch_report.read_text(encoding="utf-8"))
+    assert data["summary"]["failed"] == 1
+    assert data["summary"]["succeeded"] == 1
+    assert {item["status"] for item in data["files"]} == {"failed", "success"}
+
+
+def test_convert_batch_rejects_output_name_collisions(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    make_docx(first / "same.docx")
+    make_docx(second / "same.docx")
+
+    code = cli.main(
+        [
+            "convert",
+            str(first / "same.docx"),
+            str(second / "same.docx"),
+            "--output-dir",
+            str(tmp_path / "outputs"),
+        ]
+    )
+
+    assert code == 1
+    assert "same output DOCX" in capsys.readouterr().err

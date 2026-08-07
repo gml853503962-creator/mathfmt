@@ -416,6 +416,69 @@ def test_validate_cli_with_review(tmp_path: Path) -> None:
     assert data["coverage"]["parseable"] == 1
 
 
+def test_wps_compatibility_profile_accepts_portable_native_omml(tmp_path: Path) -> None:
+    source = make_docx_with_omml(
+        tmp_path / "wps-portable.docx",
+        content=f"<w:p>{omath_for('x = 1')}</w:p>",
+    )
+
+    report = validate_docx(source, compatibility="wps")
+
+    assert report["valid"] is True
+    assert report["options"]["compatibility"] == "wps"
+    compatibility = report["compatibility"]
+    assert compatibility["compatible"] is True
+    assert compatibility["equations"] == 1
+    assert compatibility["errors"] == []
+
+
+def test_wps_compatibility_profile_rejects_word_only_alignment_markers(tmp_path: Path) -> None:
+    source = make_docx_with_omml(
+        tmp_path / "wps-marker.docx",
+        content=(
+            "<w:p><m:oMath><m:eqArr><m:e><m:r><m:t>x &amp;= 1</m:t></m:r></m:e></m:eqArr></m:oMath></w:p>"
+        ),
+    )
+
+    report = validate_docx(source, compatibility="wps")
+
+    assert report["valid"] is False
+    compatibility = report["compatibility"]
+    assert compatibility["compatible"] is False
+    assert compatibility["checks"][1] == {
+        "name": "word_only_alignment_markers",
+        "passed": False,
+        "count": 1,
+    }
+    assert "literal '&' alignment marker" in compatibility["errors"][0]
+
+
+def test_validate_cli_reports_wps_compatibility(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = make_docx_with_omml(
+        tmp_path / "wps-cli.docx",
+        content=f"<w:p>{omath_for('sqrt(x^2 + 1)')}</w:p>",
+    )
+    report_path = tmp_path / "wps-validation.json"
+
+    code = main(
+        [
+            "validate",
+            str(source),
+            "--compatibility",
+            "wps",
+            "--report",
+            str(report_path),
+        ]
+    )
+
+    assert code == 0
+    assert "WPS compatibility: PASS" in capsys.readouterr().out
+    assert json.loads(report_path.read_text(encoding="utf-8"))["compatibility"]["compatible"] is True
+
+
 # -- cross-backend (requires native XSL) --------------------------------------
 
 

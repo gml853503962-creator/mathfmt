@@ -965,7 +965,7 @@ def node_to_mathml(node: Node) -> etree._Element:
             expression = mml("mtd")
             expression.append(node_to_mathml(branch.children[0]))
             condition = mml("mtd")
-            condition.append(mrow(mml("mtext", "if "), node_to_mathml(branch.children[1])))
+            condition.append(mrow(mml("mtext", "if\u00a0"), node_to_mathml(branch.children[1])))
             tr.extend([expression, condition])
             table.append(tr)
         piecewise = mml("mfenced", open="{", close="")
@@ -1367,8 +1367,14 @@ def mathml_to_omml(
 ) -> etree._Element:
     """Convert MathML to OMML, using XSL when available or the built-in Python backend."""
     if transform is not None:
-        return _mathml_to_omml_xsl(math, transform)
-    return mathml_to_omml_py(math)
+        omath = _mathml_to_omml_xsl(math, transform)
+    else:
+        omath = mathml_to_omml_py(math)
+    for text_element in omath.xpath(".//m:t", namespaces=NS):
+        text = text_element.text or ""
+        if text[:1].isspace() or text[-1:].isspace():
+            text_element.set(qname(XML_NS, "space"), "preserve")
+    return omath
 
 
 def paragraph_text(paragraph: etree._Element) -> str:

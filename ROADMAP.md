@@ -82,13 +82,15 @@ but timelines are best-effort — this is a single-maintainer project.
 - [x] Improved Unicode symbol mapping for common number sets and relation/set operators
 - [x] User-extensible symbol aliases (e.g. custom shorthand → MathML)
 
-## v0.5.0 — Compatibility & Integration · 兼容性与集成
+## v0.5.0 — Compatibility & Integration · 兼容性与集成 (released 2026-08-07)
 
 **Focus:** Work well in more environments and toolchains.
 
-- [ ] WPS Office compatibility testing (WPS Writer on Windows/Linux)
+- [x] WPS Writer 12 Windows round-trip save, PDF visual QA, and reusable automation script
+- [x] Cross-platform offline WPS compatibility profile (`validate --compatibility wps`)
+- [ ] Native WPS Writer Linux visual QA (requires a Linux desktop with proprietary WPS installed)
 - [x] LibreOffice Writer compatibility testing and PDF render smoke test
-- [ ] Batch processing: `mathfmt convert ./folder/*.docx`
+- [x] Batch processing: `mathfmt convert ./folder/*.docx`
 - [x] GitHub Actions render recipe for CI integration
 
 ## v1.0.0 — Stable API · 稳定 API

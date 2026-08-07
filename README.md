@@ -98,8 +98,9 @@ name, absolute path, symbol count, and SHA-256 digest.
 
 ## Status
 
-**Beta (v0.4.0).** Cross-platform OMML, structured safety reports, explicit LaTeX delimiters,
-aligned and piecewise equations, chemistry and physics notation, and custom symbol aliases.
+**Beta (v0.5.0).** Cross-platform OMML, structured safety reports, batch conversion,
+WPS compatibility checks, explicit LaTeX delimiters, aligned and piecewise equations,
+chemistry and physics notation, and custom symbol aliases.
 
 ---
 
@@ -135,9 +136,12 @@ MathFmt 将 DOCX 中的普通文本公式排版为 Word 原生 OMML 公式。
 | OMML 公式输出（内置 Python 后端） | ✔ | ✔ | ✔ |
 | OMML 公式输出（Office XSL 后端） | ✔ | ✔¹ | ✔¹ |
 | Word 渲染 | ✔ | ✔² | — |
+| WPS Writer 渲染 | ✔³ | — | ◐⁴ |
 
 ¹ 需手动指定 `MML2OMML.XSL` 路径（`--xsl`）。  
 ² macOS 版 Microsoft Word。
+³ 已使用 WPS Writer 12.0 完成隐藏打开、DOCX 往返保存和 PDF 视觉验收。
+⁴ `--compatibility wps` 离线检查可在 Linux 运行；Linux 版 WPS 的原生视觉验收仍需手工执行。
 
 ### 命令
 
@@ -147,7 +151,9 @@ mathfmt apply   input.docx --review candidates.json --report preview.json --dry-
 mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json  # 审核后转换
 mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json --strict  # 失败则不写输出
 mathfmt convert input.docx                           # 保守一键转换
+mathfmt convert "folder/*.docx" --output-dir converted --batch-report batch.json  # 批量转换
 mathfmt validate input.docx                           # 离线结构验证
+mathfmt validate input.docx --compatibility wps       # WPS 兼容性检查
 mathfmt doctor                                        # 环境诊断
 mathfmt update                                        # 检查 GitHub 更新
 ```
@@ -178,6 +184,7 @@ pip install --upgrade mathfmt
 | **0.2.3** (2026-06-22) | Parser 修复（省略号/阶乘/大型算子/边界/深度）；文档与示例完善 |
 | **0.3.0** (2026-06-25) | 结构化转换报告；dry-run 预览；严格模式；失败公式提示；更好的错误信息 |
 | **0.4.0** (2026-08-06) | LaTeX 分隔符；多行对齐；分段函数；化学与物理记号；自定义符号别名 |
+| **0.5.0** (2026-08-07) | 批量转换；WPS 离线兼容性检查与 Windows 往返渲染验收 |
 | **1.0.0** (2027) | 稳定 API；长期支持 |
 
 ### 更多文档
@@ -230,9 +237,12 @@ MathFmt converts plain-text formulas in DOCX files into native Word OMML equatio
 | OMML output (built-in Python backend) | ✔ | ✔ | ✔ |
 | OMML output (Office XSL backend) | ✔ | ✔¹ | ✔¹ |
 | Word rendering | ✔ | ✔² | — |
+| WPS Writer rendering | ✔³ | — | ◐⁴ |
 
 ¹ Manual `--xsl` path required for Office XSL backend.  
 ² Microsoft Word for Mac.
+³ Round-trip DOCX save and PDF visual QA completed with WPS Writer 12.0.
+⁴ The offline `--compatibility wps` profile runs on Linux; native Linux WPS visual QA remains manual.
 
 ### Commands
 
@@ -242,7 +252,9 @@ mathfmt apply   input.docx --review candidates.json --report preview.json --dry-
 mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json  # Apply reviewed candidates
 mathfmt apply   input.docx --review candidates.json --output out.docx --report result.json --strict  # Do not write output on failures
 mathfmt convert input.docx                           # Conservative one-step conversion
+mathfmt convert "folder/*.docx" --output-dir converted --batch-report batch.json  # Batch conversion
 mathfmt validate input.docx                           # Offline structure validation
+mathfmt validate input.docx --compatibility wps       # WPS compatibility lint
 mathfmt doctor                                        # Environment check
 mathfmt update                                        # Check GitHub for updates
 ```
@@ -273,6 +285,7 @@ pip install --upgrade mathfmt
 | **0.2.3** (2026-06-22) | Parser fixes (ellipsis, factorial, n-ary, 1(t), x_bar, boundary); depth validation; docs & examples |
 | **0.3.0** (2026-06-25) | Structured conversion reports; dry-run preview; strict mode; failed-formula warnings; better errors |
 | **0.4.0** (2026-08-06) | LaTeX delimiters, aligned and piecewise equations, chemistry and physics notation, and symbol aliases |
+| **0.5.0** (2026-08-07) | Batch conversion, offline WPS compatibility lint, and Windows WPS round-trip rendering QA |
 | **1.0.0** (2027) | Stable API; long-term support |
 
 ### Further Reading

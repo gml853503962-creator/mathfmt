@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from lxml import etree
 
 M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+XML_NS = "http://www.w3.org/XML/1998/namespace"
 
 
 def qname(ns: str, local: str) -> str:
@@ -181,6 +182,8 @@ def _text_run(parent: etree._Element, text: str, *, plain: bool = False) -> None
         style.set(qname(M_NS, "val"), "p")
     t = etree.SubElement(r, qname(M_NS, "t"))
     t.text = text
+    if text[:1].isspace() or text[-1:].isspace():
+        t.set(qname(XML_NS, "space"), "preserve")
 
 
 def _fraction(elem: etree._Element, parent: etree._Element) -> None:

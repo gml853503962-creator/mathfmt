@@ -154,6 +154,85 @@ def _validate_omml_structure(
     return result
 
 
+def _validate_wps_compatibility(parts: dict[str, bytes]) -> dict[str, object]:
+    """Lint generated equations for constructs known to be fragile in WPS Writer."""
+    result: dict[str, object] = {
+        "profile": "wps",
+        "compatible": True,
+        "equations": 0,
+        "equation_arrays": 0,
+        "errors": [],
+        "warnings": [],
+        "checks": [],
+    }
+    equations = 0
+    equation_arrays = 0
+    alignment_markers = 0
+    alignment_controls = 0
+    embedded_objects = 0
+
+    for name, raw in parts.items():
+        if not TARGET_PART_RE.match(name) and name != "word/document.xml":
+            continue
+        try:
+            root = parse_xml_part(raw, part_name=name)
+        except (etree.XMLSyntaxError, DocxSecurityError):
+            continue
+        equations += len(root.xpath(".//m:oMath", namespaces=NS))
+        equation_arrays += len(root.xpath(".//m:eqArr", namespaces=NS))
+        alignment_controls += len(root.xpath(".//m:aln | .//m:alnScr", namespaces=NS))
+        embedded_objects += len(root.xpath(".//w:p[.//m:oMath]//w:object", namespaces=NS))
+        for text_node in root.xpath(".//m:eqArr//m:t", namespaces=NS):
+            alignment_markers += (text_node.text or "").count("&")
+
+    errors = result["errors"]
+    warnings = result["warnings"]
+    checks = result["checks"]
+    assert isinstance(errors, list)
+    assert isinstance(warnings, list)
+    assert isinstance(checks, list)
+    checks.extend(
+        [
+            {"name": "native_omml", "passed": equations > 0, "count": equations},
+            {
+                "name": "word_only_alignment_markers",
+                "passed": alignment_markers == 0,
+                "count": alignment_markers,
+            },
+            {
+                "name": "word_alignment_controls",
+                "passed": alignment_controls == 0,
+                "count": alignment_controls,
+            },
+            {
+                "name": "embedded_objects_in_equations",
+                "passed": embedded_objects == 0,
+                "count": embedded_objects,
+            },
+        ]
+    )
+    if equations == 0:
+        warnings.append("No native OMML equations were found to check")
+    if equation_arrays:
+        warnings.append(
+            f"Found {equation_arrays} relation-less equation array(s); verify their row alignment in WPS"
+        )
+    if alignment_markers:
+        errors.append(
+            f"Found {alignment_markers} literal '&' alignment marker(s) inside m:eqArr; "
+            "these can render visibly in non-Word office suites"
+        )
+    if alignment_controls:
+        errors.append(f"Found {alignment_controls} Word-only equation alignment control(s) (m:aln/m:alnScr)")
+    if embedded_objects:
+        errors.append(f"Found {embedded_objects} embedded object(s) in equation paragraphs")
+
+    result["equations"] = equations
+    result["equation_arrays"] = equation_arrays
+    result["compatible"] = not errors
+    return result
+
+
 def _validate_coverage(
     parts: dict[str, bytes],
     review: dict[str, object],
@@ -287,11 +366,14 @@ def validate_docx(
     review_path: Path | None = None,
     xsl_path: Path | None = None,
     alias_profile: AliasProfile | None = None,
+    compatibility: str | None = None,
 ) -> dict[str, object]:
     if input_path.suffix.lower() != ".docx":
         raise ValueError("Input must be a .docx file")
     if not input_path.is_file():
         raise FileNotFoundError(f"Input DOCX was not found: {input_path}")
+    if compatibility not in {None, "wps"}:
+        raise ValueError(f"Unsupported compatibility profile: {compatibility}")
 
     from ._version import __version__
 
@@ -311,6 +393,7 @@ def validate_docx(
             "backend": backend,
             "xsl": str(xsl_path.resolve()) if xsl_path is not None else None,
             "alias_profile": alias_profile_metadata(alias_profile),
+            "compatibility": compatibility,
         },
         "summary": {
             "valid": True,
@@ -344,6 +427,9 @@ def validate_docx(
     # Layer 2: OMML
     report["omml"] = _validate_omml_structure(parts)
 
+    if compatibility == "wps":
+        report["compatibility"] = _validate_wps_compatibility(parts)
+
     # Layer 3: coverage (requires review)
     if review_path is not None:
         review = json.loads(review_path.read_text(encoding="utf-8"))
@@ -372,15 +458,24 @@ def validate_docx(
     if isinstance(cov, dict):
         if cov.get("failures"):
             has_issues = True
+    compatibility_report = report.get("compatibility")
+    if isinstance(compatibility_report, dict) and not compatibility_report.get("compatible", False):
+        has_issues = True
     report["valid"] = not has_issues
     structural_errors = oml.get("structural_errors", []) if isinstance(oml, dict) else []
     structural_warnings = oml.get("structural_warnings", []) if isinstance(oml, dict) else []
     coverage_failures = cov.get("failures", []) if isinstance(cov, dict) else []
+    compatibility_errors = (
+        compatibility_report.get("errors", []) if isinstance(compatibility_report, dict) else []
+    )
+    compatibility_warnings = (
+        compatibility_report.get("warnings", []) if isinstance(compatibility_report, dict) else []
+    )
     equation_count = oml.get("equation_count", 0) if isinstance(oml, dict) else 0
     report["summary"] = {
         "valid": report["valid"],
-        "errors": len(structural_errors) + len(coverage_failures),
-        "warnings": len(structural_warnings),
+        "errors": len(structural_errors) + len(coverage_failures) + len(compatibility_errors),
+        "warnings": len(structural_warnings) + len(compatibility_warnings),
         "equations": equation_count,
     }
 
